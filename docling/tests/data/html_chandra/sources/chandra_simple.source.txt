@@ -1,1 +1,0 @@
-Source: tests/data/pdf/2305.03393v1-pg9.pdf, page 1. Model: datalab-to/chandra-ocr-2.

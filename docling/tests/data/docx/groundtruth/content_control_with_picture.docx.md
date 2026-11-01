@@ -1,5 +1,0 @@
-<!-- image -->
-
-COVER TITLE INSIDE SDT
-
-BODY TEXT OUTSIDE SDT

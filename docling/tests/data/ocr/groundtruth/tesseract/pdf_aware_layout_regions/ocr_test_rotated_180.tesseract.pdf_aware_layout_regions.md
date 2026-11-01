@@ -1,1 +1,0 @@
-Docling bundles PDF document conversion to JSON and Markdown In an easy self contained package
