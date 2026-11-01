@@ -12,3 +12,7 @@ dist/
 outputs/
 results/
 *.log
+datasets/
+dataset/
+
+
