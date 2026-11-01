@@ -1,0 +1,3 @@
+# Install the retained local Docling checkout and this conversion package.
+-e ./docling[standard]
+-e .

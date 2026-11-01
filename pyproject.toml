@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neet-pdf-to-jsons"
+version = "0.1.0"
+description = "Convert question-paper PDFs into source JSON and structured MCQs."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["docling-slim[standard]>=2.0,<3"]
+
+[project.optional-dependencies]
+eval = ["sentence-transformers>=3.0,<6"]
+
+[project.scripts]
+pdf-to-jsons = "pdf_to_jsons.pdf_to_mcqs:main"
+pdf-to-raw-json = "pdf_to_jsons.run_converter:main"
+extract-mcqs = "pdf_to_jsons.extract_mcqs:main"
+review-mcqs = "pdf_to_jsons.hybrid_mcq.run:main"
+evaluate-mcqs = "pdf_to_jsons.evaluate:main"
+show-mcq = "pdf_to_jsons.show_mcq:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pdf_to_jsons*"]
