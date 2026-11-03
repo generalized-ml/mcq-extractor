@@ -1,3 +1,3 @@
-# Install the retained local Docling checkout and this conversion package.
--e ./docling[standard]
--e .
+# Install Docling and the local conversion package with macOS crop support.
+# To use a separate local Docling checkout: pip install -e './docling[standard]'
+-e .[crop]

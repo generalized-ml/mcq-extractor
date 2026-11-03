@@ -11,16 +11,25 @@ requires-python = ">=3.10"
 dependencies = ["docling-slim[standard]>=2.0,<3"]
 
 [project.optional-dependencies]
-eval = ["sentence-transformers>=3.0,<6"]
+eval = ["sentence-transformers>=3.0,<6", "matplotlib>=3.8,<4"]
+crop = ["pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0", "ocrmac>=1.0; sys_platform == 'darwin'"]
+my = ["torch>=2.4,<3", "torchvision>=0.19,<1", "transformers>=5.7,<6", "huggingface-hub>=1.0,<2", "opencv-python-headless>=4.8,<5", "numpy>=1.24", "pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0"]
+paddle-mobile = ["paddleocr>=3.0,<4", "paddlepaddle>=3.0,<4", "pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0"]
+paddle = ["torch>=2.4,<3", "torchvision>=0.19,<1", "transformers>=5.0,<6", "pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0"]
 
 [project.scripts]
 pdf-to-jsons = "pdf_to_jsons.pdf_to_mcqs:main"
 pdf-to-raw-json = "pdf_to_jsons.run_converter:main"
 extract-mcqs = "pdf_to_jsons.extract_mcqs:main"
 review-mcqs = "pdf_to_jsons.hybrid_mcq.run:main"
-evaluate-mcqs = "pdf_to_jsons.evaluate:main"
+plot-experiments = "evaluation.plot_experiments:main"
+evaluate-mcqs = "evaluation.evaluate:main"
 show-mcq = "pdf_to_jsons.show_mcq:main"
+crop-mcqs = "pdf_to_jsons.crop_pipeline:main"
+json-crops = "pdf_to_jsons.json_crops:main"
+json-crops-my = "pdf_to_json_my.pipeline:main"
+json-crops-paddle = "pdf_to_json_paddle.pipeline:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["pdf_to_jsons*"]
+include = ["pdf_to_jsons*", "pdf_to_json_paddle*", "pdf_to_json_my*", "evaluation*"]

@@ -14,7 +14,4 @@ results/
 *.log
 datasets/
 dataset/
-
-
-
 /tests/fixtures/converter_out/
