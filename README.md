@@ -1,6 +1,6 @@
 # PDF to JSON and MCQs
 ## This repo is currenting in work-in-progress mode - 
-![alt text](results/experiments.png)
+![alt text](docs/result/experiments.png)
 For the separate PaddleOCR-VL-1.6 pipeline with confidence-based text-only LLM
 review, see [Paddle pipeline setup and usage](src/pdf_to_json_paddle/README.md).
 
