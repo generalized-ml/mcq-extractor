@@ -9,7 +9,7 @@ from unittest.mock import patch
 import contextlib
 import io
 
-from pdf_to_jsons.evaluate import (
+from evaluation.evaluate import (
     WEIGHTS, cosine_similarity, evaluate, keyword_match,
     load_questions, normalize_question, save_results, llm_cost_report, main,
 )
@@ -65,7 +65,7 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(summary["llm_priced_calls"], 1)
         self.assertIsNone(llm_cost_report([{}])[1]["llm_cost_usd"])
 
-    def test_cli_saves_cost_summary_metadata_and_call_ledger(self):
+    def test_cli_saves_only_one_experiment_csv_with_costs(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             record = {"question_number": "1", "question_text": "Example",
@@ -80,20 +80,15 @@ class EvaluationTests(unittest.TestCase):
             output = root / "results"
             with patch("sys.argv", ["evaluate", "--mcq-json", str(prediction),
                                     "--golden-json", str(golden), "--output-dir", str(output)]), \
-                 patch("pdf_to_jsons.evaluate.SentenceEncoder", return_value=fake_encoder), \
+                 patch("evaluation.evaluate.SentenceEncoder", return_value=fake_encoder), \
                  contextlib.redirect_stdout(io.StringIO()):
                 main()
-            with (output / "experiments.csv").open() as stream:
+            with (output / "experiment.csv").open() as stream:
                 summary = next(csv.DictReader(stream))
             self.assertAlmostEqual(float(summary["llm_cost_usd"]), 0.0004313)
             self.assertEqual(summary["llm_total_tokens"], "120")
-            metadata = json.loads((output / "experiment_0001_metadata.json").read_text())
-            self.assertEqual(metadata["llm_usage"]["llm_priced_calls"], 1)
-            with (output / "experiment_0001_llm_calls.csv").open() as stream:
-                calls = list(csv.DictReader(stream))
-            self.assertEqual(len(calls), 1)
-            self.assertEqual(calls[0]["response_id"], "call-1")
-            self.assertEqual(calls[0]["cost_usd"], "0.0004313")
+            self.assertEqual(summary["llm_priced_calls"], "1")
+            self.assertEqual([p.name for p in output.iterdir()], ["experiment.csv"])
 
     def test_keyword_stops_at_first_different_word(self):
         result = keyword_match("one WRONG three four", "one two three four")
@@ -214,6 +209,19 @@ class EvaluationTests(unittest.TestCase):
         self.assertEqual(cosine_similarity([1, 0], [-1, 0]), 0.0)
         self.assertEqual(cosine_similarity([0, 0], [1, 0]), 0.0)
 
+    def test_shared_csv_distinguishes_pipelines(self):
+        rows, summary = evaluate([question()], [question()], fake_encoder)
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for name in ('pdf_to_json', 'pdf_to_json_paddle', 'pdf_to_json'):
+                save_results(root, rows, summary, {'experiment_name': name}, None)
+            with (root / 'experiment.csv').open() as stream:
+                records = list(csv.DictReader(stream))
+            self.assertEqual([r['experiment_number'] for r in records], ['1', '2', '3'])
+            self.assertEqual([r['experiment_name'] for r in records],
+                             ['pdf_to_json', 'pdf_to_json_paddle', 'pdf_to_json'])
+            self.assertEqual(len(list(root.iterdir())), 1)
+
     def test_csv_experiment_numbers_and_overwrite_protection(self):
         rows, summary = evaluate([question()], [question()], fake_encoder)
         with tempfile.TemporaryDirectory() as tmp:
@@ -223,6 +231,8 @@ class EvaluationTests(unittest.TestCase):
             self.assertEqual((first, second), (1, 2))
             with path.open() as stream:
                 result = list(csv.DictReader(stream))
+            self.assertEqual(len(result), 2)
+            self.assertEqual([p.name for p in output.iterdir()], ["experiment.csv"])
             self.assertEqual(result[0]["keyword_score"], "1.00000000")
             self.assertEqual(result[0]["experiment_number"], "1")
             with self.assertRaises(ValueError):

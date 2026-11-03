@@ -8,7 +8,7 @@ Run from the workspace root, using the Python environment where you installed th
 ```bash
 python -m pip install -e ".[eval]"
 
-python -m pdf_to_jsons.evaluate \
+python -m evaluation \
   --mcq-json dataset/jsons/2021/mcq_with_llm/2021_mcqs_with_llm.json \
   --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json
 ```
@@ -85,23 +85,22 @@ numbers, negation, or mathematical symbols; keep both metrics visible.
 
 ## Output
 
-Results default to `results/pdf_to_jsons`, independent of working directory:
+Results default to `results`, independent of working directory:
 
-- `experiments.csv`: one row per experiment with overall scores, six field scores
+- `experiment.csv`: one row per experiment with overall scores, six field scores
   for each metric, missing/extra counts, and input/model identifiers.
-- `experiment_0001_questions.csv`: one row per golden question with the same field
-  scores, prefix lengths, word counts, first mismatched words, and diagnostics.
-- `experiment_0001_metadata.json`: scoring rules, weights, and input SHA-256 hashes.
-- `experiment_0001_llm_calls.csv`: recorded extraction/review calls with response
-  IDs, models, statuses, reported USD costs, and prompt/completion/total tokens.
+
+Evaluation now writes only `experiment.csv`, appending one summary row per run.
+Per-question CSVs, metadata JSONs, and per-call CSVs are no longer generated.
+Existing older reports are left untouched. Detailed LLM calls remain in the input
+pipeline JSON.
 
 ## LLM costs
 
 Evaluation automatically reads the extraction costs already saved in the MCQ
-JSON. `experiments.csv` adds `llm_cost_usd`, `llm_cost_currency`,
+JSON. `experiment.csv` adds `llm_cost_usd`, `llm_cost_currency`,
 `llm_recorded_calls`, `llm_priced_calls`, `llm_missing_cost_calls`, and
-`llm_prompt_tokens`, `llm_completion_tokens`, and `llm_total_tokens`. The same
-summary is stored under `llm_usage` in the metadata JSON and printed in the CLI.
+`llm_prompt_tokens`, `llm_completion_tokens`, and `llm_total_tokens`. The cost summary is also printed in the CLI.
 No additional argument, API key, or LLM call is required to read costs.
 
 Costs use OpenRouter's saved `usage.cost` value; see its
@@ -121,7 +120,7 @@ do not retain all failed or retried HTTP attempts, so these reports cannot
 reconstruct their charges or serve as a complete billing ledger. Evaluation
 itself uses local embeddings and makes no LLM requests.
 
-Existing `experiments.csv` files created before these additional columns have
+Existing `experiment.csv` files created before these additional columns have
 a different schema. Choose a new `--output-dir` when using such an older report;
 the evaluator preserves it rather than mixing incompatible rows.
 
@@ -141,3 +140,25 @@ PYTHONPATH=src python -m unittest discover -s tests -p 'test_evaluate.py'
 
 Tests use explicit fake vectors to verify scoring and CSV logic without a model
 download; actual evaluation always uses sentence embeddings.
+
+## Shared experiments
+
+The implementation lives in `src/evaluation`. All pipelines append to the same
+`results/experiment.csv` by default. `experiment_name` identifies `pdf_to_json`,
+`pdf_to_json_paddle`, or `pdf_to_json_my`; `experiment_number` uniquely identifies
+each run across pipelines. Input paths and hashes distinguish papers and outputs.
+Specify the label explicitly when evaluating a renamed input:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m evaluation \
+  --experiment-name pdf_to_json_paddle \
+  --mcq-json outputs/json_crops_paddle/2021/final_mcqs.json \
+  --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json \
+  --device cpu
+```
+
+Use `--experiment-name pdf_to_json` for the original pipeline. Omit `--output-dir`
+to keep all runs in the shared file. Existing two experiment summaries were
+migrated without recomputing scores; original reports are preserved in
+`outputs/evaluation_legacy_reports.zip`. The old module entry point remains a
+compatibility wrapper.

@@ -14,7 +14,8 @@ if TYPE_CHECKING:
 
 
 def run_converter(
-    pdf_path: Path, output_dir: Path, *, output_path: Path | None = None
+    pdf_path: Path, output_dir: Path, *, output_path: Path | None = None,
+    ocr_engine: str | None = None,
 ) -> ConversionResult:
     """Return conv_res and save its public fields, including the document, as JSON."""
     pdf_path = pdf_path.expanduser().resolve()
@@ -33,7 +34,11 @@ def run_converter(
 
     options = PdfPipelineOptions()
     options.do_ocr = True
-    options.ocr_options.lang = ["en"]
+    if ocr_engine == "ocrmac":
+        from docling.datamodel.pipeline_options import OcrMacOptions
+        options.ocr_options = OcrMacOptions(lang=["en-US"], recognition="accurate", framework="vision")
+    else:
+        options.ocr_options.lang = ["en"]
     options.do_table_structure = True
     options.table_structure_options.do_cell_matching = True
     options.images_scale = 2.0

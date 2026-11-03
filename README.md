@@ -1,4 +1,8 @@
 # PDF to JSON and MCQs
+## This repo is currenting in work-in-progress mode - 
+![alt text](results/experiments.png)
+For the separate PaddleOCR-VL-1.6 pipeline with confidence-based text-only LLM
+review, see [Paddle pipeline setup and usage](src/pdf_to_json_paddle/README.md).
 
 Convert NEET question-paper PDFs into Docling source JSON, heuristic MCQs, and
 MCQs reviewed with OpenRouter vision. The pipeline and evaluator were copied
@@ -117,5 +121,10 @@ Evaluation writes to `results/pdf_to_jsons`. Offline tests need no model downloa
 or API key. Evaluation also saves the recorded LLM extraction costs in USD and
 token counts in the experiment summary, metadata, and a per-call CSV. Missing
 costs stay unknown; unrecorded failed/retried attempts are excluded.
-See [architecture](docs/architecture.md), [evaluation](docs/evaluation.md),
+See [crop-based OCR and LLM extraction](docs/crop-pipeline.md),
+[architecture](docs/architecture.md), [evaluation](docs/evaluation.md),
 and [hybrid review](docs/hybrid-review.md) for details.
+
+For the PaddleOCR-free mobile pipeline using native Hugging Face weights, see
+[src/pdf_to_json_my/README.md](src/pdf_to_json_my/README.md). Run
+`bash json_crops_my.sh`; install its dependencies with `pip install -e '.[my]'`.
