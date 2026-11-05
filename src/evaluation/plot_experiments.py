@@ -26,6 +26,11 @@ def read_experiments(path: Path) -> list[dict]:
             if not math.isfinite(value) or not 0 <= value <= 1:
                 raise ValueError(f'Invalid {key} for experiment {row["experiment_number"]}')
             row[key] = value
+        raw_aggregate = row.get('aggregate_score', '').strip()
+        row['aggregate_score'] = (float(raw_aggregate) if raw_aggregate else
+                                  (row['keyword_score'] + row['semantic_score']) / 2)
+        if not math.isfinite(row['aggregate_score']) or not 0 <= row['aggregate_score'] <= 1:
+            raise ValueError(f'Invalid aggregate_score for experiment {row["experiment_number"]}')
         raw = row.get('llm_cost_usd', row.get('llm_api_cost', '')).strip()
         row['cost'] = None if raw.lower() in ('', 'none', 'null', 'nan') else float(raw)
         if row['cost'] is not None and (not math.isfinite(row['cost']) or row['cost'] < 0):
@@ -44,16 +49,18 @@ def plot_experiments(csv_path: Path, output: Path) -> Path:
     from matplotlib.ticker import FuncFormatter, MultipleLocator
     from matplotlib.patches import Patch
 
-    colors = ('#3979D6', '#19A78D', '#E99A3B')
+    colors = ('#3979D6', '#19A78D', '#8266D7', '#E99A3B')
     with plt.rc_context({'font.family': 'DejaVu Sans', 'font.size': 11,
                          'axes.labelcolor': '#475569', 'text.color': '#172B45',
                          'xtick.color': '#475569', 'ytick.color': '#475569'}):
         fig, ax = plt.subplots(figsize=(max(10, len(rows)*2.2), 6.5), facecolor='#F5F7FB')
         ax.set_facecolor('#FFFFFF')
         cost_ax = ax.twinx()
-        width = .23
+        width = .18
         x = list(range(len(rows)))
-        for offset, key, color in ((-width, 'keyword_score', colors[0]), (0, 'semantic_score', colors[1])):
+        for offset, key, color in ((-1.5*width, 'keyword_score', colors[0]),
+                                   (-.5*width, 'semantic_score', colors[1]),
+                                   (.5*width, 'aggregate_score', colors[2])):
             bars = ax.bar([i+offset for i in x], [r[key] for r in rows], width*.88,
                           color=color, zorder=3)
             ax.bar_label(bars, labels=[f'{r[key]:.3f}' for r in rows], padding=7,
@@ -63,10 +70,10 @@ def plot_experiments(csv_path: Path, output: Path) -> Path:
         for i, row in enumerate(rows):
             value = row['cost']
             if value is None:
-                cost_ax.annotate('Unknown', (i+width, 0), xytext=(0, 8),
-                                 textcoords='offset points', ha='center', fontsize=9, color=colors[2])
+                cost_ax.annotate('Unknown', (i+1.5*width, 0), xytext=(0, 8),
+                                 textcoords='offset points', ha='center', fontsize=9, color=colors[3])
                 continue
-            bars = cost_ax.bar(i+width, value, width*.88, color=colors[2], zorder=3,
+            bars = cost_ax.bar(i+1.5*width, value, width*.88, color=colors[3], zorder=3,
                                hatch='///' if row['partial_cost'] else None,
                                edgecolor='#BA711F', linewidth=0)
             cost_ax.bar_label(bars, labels=[f'${value:.4f}' + ('*' if row['partial_cost'] else '')],
@@ -84,11 +91,11 @@ def plot_experiments(csv_path: Path, output: Path) -> Path:
             for spine in axis.spines.values():
                 spine.set_visible(False)
         fig.text(.09, .95, 'Extraction quality & LLM cost', fontsize=21, weight='bold')
-        fig.text(.09, .90, 'Keyword and semantic scores use the left axis; API cost uses the right axis.',
+        fig.text(.09, .90, 'Keyword, semantic, and mean scores use the left axis; API cost uses the right axis.',
                  fontsize=10, color='#64748B')
         fig.legend(handles=[Patch(facecolor=c, label=l) for c,l in zip(colors,
-                   ('keyword_score', 'semantic_score', 'llm_api_cost'))],
-                   loc='upper left', bbox_to_anchor=(.08,.87), ncol=3, frameon=False)
+                   ('keyword_score', 'semantic_score', 'aggregate_score', 'llm_api_cost'))],
+                   loc='upper left', bbox_to_anchor=(.08,.87), ncol=4, frameon=False)
         note = '* Hatched costs are partial: some calls have no reported cost. Unknown costs are not zero.'
         if not any(r['partial_cost'] or r['cost'] is None for r in rows):
             note = 'Cost is reported extraction/review API usage; local computation is excluded.'

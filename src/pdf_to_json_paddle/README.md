@@ -77,7 +77,7 @@ bash json_crops_paddle.sh --resume
 
 # Evaluate when all OCR and selected reviews are complete.
 bash json_crops_paddle.sh --resume \
-  --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json
+  --golden-json dataset/golden/neet_2021/2021_mcqs.json
 ```
 
 `--limit` bounds new OCR questions. `--max-llm-questions` independently bounds new

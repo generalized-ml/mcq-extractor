@@ -12,6 +12,8 @@ import io
 from evaluation.evaluate import (
     WEIGHTS, cosine_similarity, evaluate, keyword_match,
     load_questions, normalize_question, save_results, llm_cost_report, main,
+    find_golden_json,
+    load_combined,
 )
 
 
@@ -28,6 +30,56 @@ def fake_encoder(texts):
 
 
 class EvaluationTests(unittest.TestCase):
+    def test_combined_years_keep_question_ids_separate_and_score_missing_year(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            golden_root, predictions_root = root / 'golden', root / 'predictions'
+            for year in (2021, 2022):
+                folder = golden_root / f'neet_{year}'
+                folder.mkdir(parents=True)
+                (folder / f'{year}_mcqs.json').write_text(json.dumps([{
+                    'question_number': '1', 'question_text': f'Year {year}',
+                    'options': ['a', 'b', 'c', 'd'], 'correct_answer': '1'}]))
+            output = predictions_root / '2021'
+            output.mkdir(parents=True)
+            (output / 'final_mcqs.json').write_text(json.dumps({
+                'questions': [{'question_number': '1', 'question_text': 'Year 2021',
+                               'options': ['a', 'b', 'c', 'd'], 'correct_answer': '1'}],
+                'llm_calls': [{'response_id': 'call-1', 'usage': {'cost': .01}}]}))
+            actual, golden, cost, _, _, coverage = load_combined(
+                predictions_root, 'pdf_to_json_my', golden_root, [2021, 2022])
+            self.assertEqual([item['identity'] for item in golden], ['2021:1', '2022:1'])
+            self.assertEqual([item['identity'] for item in actual], ['2021:1'])
+            self.assertEqual(coverage, [(2021, 1, 1, True), (2022, 0, 1, False)])
+            self.assertAlmostEqual(cost['llm_cost_usd'], .01)
+            _, summary = evaluate(actual, golden, fake_encoder)
+            self.assertEqual(summary['missing_predictions'], 1)
+            self.assertAlmostEqual(summary['keyword_score'], .5)
+
+    def test_combined_original_discards_numbered_cover_page_instruction(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            golden = root / 'golden' / 'neet_2024'
+            golden.mkdir(parents=True)
+            complete = {'question_number': '1', 'question_text': 'Actual question',
+                        'options': ['a', 'b', 'c', 'd'], 'correct_answer': '2'}
+            (golden / '2024_mcqs.json').write_text(json.dumps([complete]))
+            source = root / 'outputs' / '2024' / 'mcq_with_llm'
+            source.mkdir(parents=True)
+            (source / '2024_mcqs_with_llm.json').write_text(json.dumps({'questions': [
+                {'question_number': '1', 'question_text': 'Instructions', 'options': ['a', 'b']},
+                complete]}))
+            actual, _, _, _, _, coverage = load_combined(
+                root / 'outputs', 'pdf_to_json', root / 'golden', [2024])
+            self.assertEqual(len(actual), 1)
+            self.assertEqual(actual[0]['fields']['question'], 'Actual question')
+            self.assertEqual(coverage[0][:3], (2024, 1, 1))
+
+    def test_infers_renamed_neet_golden_folder(self):
+        expected = Path('dataset/golden/neet_2021/2021_mcqs.json').resolve()
+        self.assertEqual(find_golden_json(Path('outputs/json_crops_paddle/2021/final_mcqs.json').resolve()),
+                         expected)
+
     def test_cost_uses_checkpoint_once_and_includes_incomplete_calls(self):
         record = {"status": "success", "response_id": "call-1", "model": "vision",
                   "usage": {"cost": 0.0004313, "prompt_tokens": 100,
@@ -172,10 +224,15 @@ class EvaluationTests(unittest.TestCase):
         self.assertAlmostEqual(summary["keyword_score"], 0.5)
         self.assertEqual(summary["missing_predictions"], 1)
 
-    def test_each_option_has_weight_point_two_and_answer_point_one(self):
+    def test_question_options_and_answer_weights(self):
         rows, _ = evaluate([question(options=["wrong", "4 ohm", "6 ohm", "8 ohm"],
                                      correct_answer="wrong")], [question()], fake_encoder)
-        self.assertAlmostEqual(rows[0]["keyword_score"], 0.7)
+        self.assertAlmostEqual(WEIGHTS["question"], .3)
+        self.assertTrue(all(WEIGHTS[f"option_{slot}"] == .15 for slot in range(1, 5)))
+        self.assertAlmostEqual(WEIGHTS["solution"], .1)
+        self.assertAlmostEqual(rows[0]["keyword_score"], .75)
+        self.assertAlmostEqual(rows[0]["aggregate_score"],
+                               (rows[0]["keyword_score"] + rows[0]["semantic_score"]) / 2)
 
     def test_semantic_pairs_use_corresponding_fields_and_weights(self):
         def encode(texts):
@@ -187,7 +244,9 @@ class EvaluationTests(unittest.TestCase):
         )
         self.assertEqual(rows[0]["option_1_semantic_score"], 0.0)
         self.assertEqual(rows[0]["question_semantic_score"], 1.0)
-        self.assertAlmostEqual(summary["semantic_score"], 0.8)
+        self.assertAlmostEqual(summary["semantic_score"], 0.85)
+        self.assertAlmostEqual(summary["aggregate_score"],
+                               (summary["keyword_score"] + summary["semantic_score"]) / 2)
 
     def test_empty_fields_get_zero_and_extra_predictions_are_reported(self):
         rows, summary = evaluate([question(correct_answer=None), question("2")],

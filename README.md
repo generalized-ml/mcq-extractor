@@ -112,7 +112,7 @@ After installation, `pdf-to-jsons`, `pdf-to-raw-json`, `extract-mcqs`,
 python -m pip install -e '.[eval]'
 python -m pdf_to_jsons.evaluate \
   --mcq-json dataset/jsons/2021/mcq_with_llm/2021_mcqs_with_llm.json \
-  --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json
+  --golden-json dataset/golden/neet_2021/2021_mcqs.json
 
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_*.py'
 ```
@@ -128,3 +128,5 @@ and [hybrid review](docs/hybrid-review.md) for details.
 For the PaddleOCR-free mobile pipeline using native Hugging Face weights, see
 [src/pdf_to_json_my/README.md](src/pdf_to_json_my/README.md). Run
 `bash json_crops_my.sh`; install its dependencies with `pip install -e '.[my]'`.
+
+To plot experiment scores and LLM costs, run `PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments`.

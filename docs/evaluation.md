@@ -10,7 +10,7 @@ python -m pip install -e ".[eval]"
 
 python -m evaluation \
   --mcq-json dataset/jsons/2021/mcq_with_llm/2021_mcqs_with_llm.json \
-  --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json
+  --golden-json dataset/golden/neet_2021/2021_mcqs.json
 ```
 
 Use `.venv/bin/python` instead of `python` to select the project's existing
@@ -48,11 +48,11 @@ For each question, compare these six fields independently:
 
 | Field | Weight |
 | --- | --- |
-| Question | 0.1 |
-| Option 1 | 0.2 |
-| Option 2 | 0.2 |
-| Option 3 | 0.2 |
-| Option 4 | 0.2 |
+| Question | 0.3 |
+| Option 1 | 0.15 |
+| Option 2 | 0.15 |
+| Option 3 | 0.15 |
+| Option 4 | 0.15 |
 | Solution (`correct_answer`) | 0.1 |
 
 **Keyword:** split each field with Python's `str.split()` (whitespace), compare
@@ -75,6 +75,9 @@ golden denominator. Missing/empty fields score zero even when both sides are
 empty, and weights are never redistributed. Duplicate predicted option labels
 are reported and the ambiguous option slot scores zero; malformed golden
 option labels raise an error instead of being silently repaired.
+
+`aggregate_score` is the arithmetic mean of `keyword_score` and
+`semantic_score`, at both question and experiment level.
 
 These metrics evaluate **text**, not visual correctness. Image-only fields with
 no text score zero; image paths/references are not compared. A correct answer
@@ -153,7 +156,7 @@ Specify the label explicitly when evaluating a renamed input:
 PYTHONPATH=src .venv/bin/python -m evaluation \
   --experiment-name pdf_to_json_paddle \
   --mcq-json outputs/json_crops_paddle/2021/final_mcqs.json \
-  --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json \
+  --golden-json dataset/golden/neet_2021/2021_mcqs.json \
   --device cpu
 ```
 
@@ -162,3 +165,44 @@ to keep all runs in the shared file. Existing two experiment summaries were
 migrated without recomputing scores; original reports are preserved in
 `outputs/evaluation_legacy_reports.zip`. The old module entry point remains a
 compatibility wrapper.
+
+The evaluator can infer the renamed golden path from a year in `--mcq-json`.
+For example, a 2021 output uses `dataset/golden/neet_2021/2021_mcqs.json`.
+Pass `--golden-json` to override this choice.
+
+Plot the shared experiments with:
+
+```bash
+PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments
+```
+
+This saves `results/experiments.png`. Scores use the left axis and recorded LLM
+API cost uses a separate USD axis. Unknown costs are shown as unknown; partial
+costs are marked with an asterisk. Use `--output path.svg` for a vector chart.
+
+## One row for all years
+
+Use `--mcq-root` to combine 2021–2025 into one experiment row. Question IDs are
+scoped by year before matching, so the same question number in two papers cannot
+collide. A missing yearly prediction file contributes zero predictions for that
+paper and lowers the aggregate scores; the CLI prints coverage for each year.
+Recorded LLM costs and token totals are summed across the available outputs.
+
+```bash
+PYTHONPATH=src .venv/bin/python -m evaluation \
+  --mcq-root outputs/json_crops_my_all \
+  --experiment-name pdf_to_json_my --device cpu
+
+PYTHONPATH=src .venv/bin/python -m evaluation \
+  --mcq-root outputs/pdf_to_jsons_all \
+  --experiment-name pdf_to_json --device cpu
+```
+
+Both commands append one row each to `results/experiment.csv`. Use `--years` to
+choose a different set of years, or `--golden-root` for a different golden tree.
+The existing `--mcq-json` option still evaluates one paper.
+
+In combined mode, a duplicated question number is resolved only when exactly one
+candidate has all four option texts and a printed answer. This handles numbered
+cover-page instructions in the original 2023 and 2024 outputs. Ambiguous duplicates
+still fail with an explicit error.
