@@ -56,7 +56,15 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
             raise ValueError("No Paddle checkpoint found; start without --resume")
         state = json.loads(path.read_text())
         if state["identity"] != identity:
-            raise ValueError("PDF, code, or settings changed; choose a new output directory")
+            previous = {key: value for key, value in state["identity"].items() if key != "code_sha256"}
+            current = {key: value for key, value in identity.items() if key != "code_sha256"}
+            if not state.get("results") and previous == current:
+                # A checkpoint with no OCR results can safely adopt the new
+                # code, whether its crop plan was already copied or not.
+                state["identity"] = identity
+                save_json(path, state)
+            else:
+                raise ValueError("PDF, code, or settings changed; choose a new output directory")
     else:
         if root.exists() and any(root.iterdir()):
             raise ValueError("Output directory is not empty; use --resume or a new output directory")

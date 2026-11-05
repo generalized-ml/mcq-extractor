@@ -67,7 +67,7 @@ compare against golden data before assuming identical recognition quality.
 ```bash
 # Install .[my,eval] for evaluation dependencies.
 bash json_crops_my.sh --resume \
-  --golden-json dataset/golden/2021_mcq_dataset/2021_mcqs.json
+  --golden-json dataset/golden/neet_2021/2021_mcqs.json
 ```
 
 Evaluation waits until crops, OCR, and selected reviews are complete. It uses the

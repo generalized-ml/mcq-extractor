@@ -15,11 +15,12 @@ from typing import Any, Callable
 
 
 WEIGHTS = {
-    "question": 0.1, "option_1": 0.2, "option_2": 0.2,
-    "option_3": 0.2, "option_4": 0.2, "solution": 0.1,
+    "question": 0.3, "option_1": 0.15, "option_2": 0.15,
+    "option_3": 0.15, "option_4": 0.15, "solution": 0.1,
 }
 DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[2] / "results"
+GOLDEN_ROOT = Path(__file__).resolve().parents[2] / "dataset" / "golden"
 LABELS = {str(i): i for i in range(1, 5)} | {c: i for i, c in enumerate("ABCD", 1)}
 LLM_CALL_FIELDS = ("source", "response_id", "model", "status", "cost_usd",
                    "prompt_tokens", "completion_tokens", "total_tokens")
@@ -301,6 +302,7 @@ def evaluate(predictions: list[dict], golden: list[dict],
             row[f"{metric}_score"] = sum(
                 weight * row[f"{name}_{metric}_score"] for name, weight in WEIGHTS.items()
             )
+        row["aggregate_score"] = (row["keyword_score"] + row["semantic_score"]) / 2
         rows.append(row)
     summary = {
         "golden_count": len(golden), "prediction_count": len(predictions),
@@ -315,6 +317,7 @@ def evaluate(predictions: list[dict], golden: list[dict],
     for metric in ("keyword", "semantic"):
         key = f"{metric}_score"
         summary[key] = sum(row[key] for row in rows) / len(rows)
+    summary["aggregate_score"] = (summary["keyword_score"] + summary["semantic_score"]) / 2
     return rows, summary
 
 
@@ -325,6 +328,83 @@ def experiment_name(path: Path) -> str:
     if "json_crops_my" in value or "pdf_to_json_my" in value:
         return "pdf_to_json_my"
     return "pdf_to_json"
+
+
+def find_golden_json(prediction_path: Path) -> Path:
+    """Find the renamed NEET golden directory from a prediction's PDF year."""
+    import re
+
+    years = re.findall(r"(?<!\d)20\d{2}(?!\d)", str(prediction_path))
+    for year in reversed(years):
+        candidate = GOLDEN_ROOT / f"neet_{year}" / f"{year}_mcqs.json"
+        if candidate.is_file():
+            return candidate
+    raise ValueError("Could not infer the golden JSON; pass --golden-json explicitly")
+
+
+def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]):
+    """Combine years while keeping identical question numbers distinct."""
+    if len(years) != len(set(years)) or not years:
+        raise ValueError("Years must be unique and nonempty")
+    pattern = {
+        "pdf_to_json": "{year}/mcq_with_llm/{year}_mcqs_with_llm.json",
+        "pdf_to_json_paddle": "{year}/final_mcqs.json",
+        "pdf_to_json_my": "{year}/final_mcqs.json",
+    }[pipeline]
+    predictions, golden, per_year, cost_reports = [], [], [], []
+    input_hash, golden_hash = hashlib.sha256(), hashlib.sha256()
+    found = 0
+    for year in years:
+        golden_path = golden_root / f"neet_{year}" / f"{year}_mcqs.json"
+        if not golden_path.is_file():
+            raise ValueError(f"Missing golden JSON for {year}: {golden_path}")
+        prediction_path = root / pattern.format(year=year)
+        source = prediction_path.read_bytes() if prediction_path.is_file() else None
+        reference = golden_path.read_bytes()
+        input_hash.update(f"{year}:".encode())
+        input_hash.update(source if source is not None else b"MISSING")
+        golden_hash.update(f"{year}:".encode())
+        golden_hash.update(reference)
+        expected = load_questions(golden_path, strict=True)
+        actual = load_questions(prediction_path) if source is not None else []
+        # Some original runs included a cover-page item 1 and the real
+        # question 1. Keep the unique complete candidate; ambiguous duplicates
+        # still fail rather than changing the score arbitrarily.
+        groups = {}
+        for item in actual:
+            groups.setdefault(item["identity"], []).append(item)
+        resolved = []
+        for identity, entries in groups.items():
+            if not identity or len(entries) == 1:
+                resolved.extend(entries)
+                continue
+            complete = [item for item in entries if item["fields"]["solution"].strip()
+                        and all(item["fields"][f"option_{slot}"].strip() for slot in range(1, 5))]
+            if len(complete) != 1:
+                raise ValueError(f"Ambiguous duplicate question ID in {prediction_path}: {identity!r}")
+            resolved.append(complete[0])
+        actual = resolved
+        for item in expected:
+            item["identity"] = f"{year}:{item['identity']}"
+        for item in actual:
+            item["identity"] = f"{year}:{item['identity']}" if item["identity"] else ""
+        golden.extend(expected)
+        predictions.extend(actual)
+        if source is not None:
+            found += 1
+            _, cost = llm_cost_report(json.loads(source))
+            cost_reports.append(cost)
+        per_year.append((year, len(actual), len(expected), source is not None))
+    if not found:
+        raise ValueError(f"No prediction JSONs found in {root}")
+    cost = {"llm_cost_currency": "USD"}
+    for key in ("llm_recorded_calls", "llm_priced_calls", "llm_missing_cost_calls"):
+        cost[key] = sum(report[key] for report in cost_reports)
+    for key in ("llm_cost_usd", "llm_prompt_tokens", "llm_completion_tokens", "llm_total_tokens"):
+        values = [report[key] for report in cost_reports if report[key] is not None]
+        cost[key] = math.fsum(values) if key == "llm_cost_usd" and values else (
+            sum(values) if values else None)
+    return predictions, golden, cost, input_hash.hexdigest(), golden_hash.hexdigest(), per_year
 
 
 def csv_values(row: dict) -> dict:
@@ -360,8 +440,13 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mcq-json", required=True, type=Path)
-    parser.add_argument("--golden-json", required=True, type=Path)
+    inputs = parser.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--mcq-json", type=Path, help="Evaluate one JSON file")
+    inputs.add_argument("--mcq-root", type=Path, help="Evaluate all requested years as one experiment")
+    parser.add_argument("--golden-json", type=Path,
+                        help="Defaults to dataset/golden/neet_<year>/<year>_mcqs.json inferred from --mcq-json")
+    parser.add_argument("--golden-root", type=Path, default=GOLDEN_ROOT)
+    parser.add_argument("--years", type=int, nargs="+", default=[2021, 2022, 2023, 2024, 2025])
     parser.add_argument("--experiment-name", choices=("pdf_to_json", "pdf_to_json_paddle", "pdf_to_json_my"),
                         help="Pipeline label; inferred from input path if omitted")
     parser.add_argument("--experiment-number", type=int, help="Defaults to the next unused experiment number")
@@ -374,20 +459,36 @@ def main() -> None:
     args = parser.parse_args()
     if args.batch_size < 1 or (args.experiment_number is not None and args.experiment_number < 1):
         parser.error("Batch size and experiment number must be positive")
+    if args.mcq_root and args.golden_json:
+        parser.error("Use --golden-root with --mcq-root")
     try:
-        prediction_path = args.mcq_json.expanduser().resolve()
-        golden_path = args.golden_json.expanduser().resolve()
-        predictions = load_questions(prediction_path)
-        golden = load_questions(golden_path, strict=True)
-        llm_calls, cost_summary = llm_cost_report(json.loads(prediction_path.read_text(encoding="utf-8")))
+        prediction_path = (args.mcq_root or args.mcq_json).expanduser().resolve()
+        if args.mcq_root:
+            pipeline = args.experiment_name or experiment_name(prediction_path)
+            golden_path = args.golden_root.expanduser().resolve()
+            predictions, golden, cost_summary, prediction_hash, reference_hash, per_year = load_combined(
+                prediction_path, pipeline, golden_path, args.years)
+            print("Combined years: " + ", ".join(
+                f"{year}={actual}/{expected}" + (" (missing output)" if not present else "")
+                for year, actual, expected, present in per_year))
+            llm_calls = None
+        else:
+            pipeline = args.experiment_name or experiment_name(prediction_path)
+            golden_path = (args.golden_json.expanduser().resolve() if args.golden_json
+                           else find_golden_json(prediction_path))
+            predictions = load_questions(prediction_path)
+            golden = load_questions(golden_path, strict=True)
+            llm_calls, cost_summary = llm_cost_report(json.loads(prediction_path.read_text(encoding="utf-8")))
+            prediction_hash = hashlib.sha256(prediction_path.read_bytes()).hexdigest()
+            reference_hash = hashlib.sha256(golden_path.read_bytes()).hexdigest()
         if not golden:
             raise ValueError("Golden dataset is empty")
         metadata = {
-            "experiment_name": args.experiment_name or experiment_name(prediction_path),
+            "experiment_name": pipeline,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "mcq_json": str(prediction_path), "golden_json": str(golden_path),
-            "mcq_sha256": hashlib.sha256(prediction_path.read_bytes()).hexdigest(),
-            "golden_sha256": hashlib.sha256(golden_path.read_bytes()).hexdigest(),
+            "mcq_sha256": prediction_hash,
+            "golden_sha256": reference_hash,
             "model": args.model, "model_revision": args.model_revision or "default",
         }
         encoder = SentenceEncoder(args.model, args.batch_size, args.local_files_only,
@@ -401,6 +502,7 @@ def main() -> None:
     print(f"Experiment: {number}")
     print(f"keyword_score: {summary['keyword_score']:.8f}")
     print(f"semantic_score: {summary['semantic_score']:.8f}")
+    print(f"aggregate_score: {summary['aggregate_score']:.8f}")
     cost = summary["llm_cost_usd"]
     print(f"Recorded LLM cost (USD): {cost:.8f}" if cost is not None else "Recorded LLM cost (USD): unknown")
     print(f"Calls with reported cost: {summary['llm_priced_calls']}/{summary['llm_recorded_calls']}")

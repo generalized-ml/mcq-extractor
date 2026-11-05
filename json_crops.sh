@@ -12,5 +12,5 @@ if [[ -f "$RAW" ]]; then
 fi
 exec "$PYTHON" -u -m pdf_to_jsons.json_crops \
     "$SCRIPT_DIR/dataset/pdfs/2021.pdf" "${JSON_CROPS_OUTPUT:-$SCRIPT_DIR/outputs/json_crops}" \
-    --golden-json "$SCRIPT_DIR/dataset/golden/2021_mcq_dataset/2021_mcqs.json" \
+    --golden-json "$SCRIPT_DIR/dataset/golden/neet_2021/2021_mcqs.json" \
     "${ARGS[@]}" "$@"
