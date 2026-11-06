@@ -21,6 +21,9 @@ The recommended folder-based commands are:
 
 # Optional custom golden dataset folder:
 .venv/bin/python -m evaluation outputs/my_experiment dataset/golden
+
+# Print results without adding a CSV row:
+.venv/bin/python -m evaluation outputs/my_experiment --no-save
 ```
 
 Every method now publishes the same public files:
@@ -43,6 +46,10 @@ experiment label. A single PDF output folder can also be passed directly. PDF
 names come from `source_pdf` when recorded, otherwise from their folder names.
 The default experiment label is the input folder name; arbitrary labels are
 accepted with `--experiment-name`. One command appends one experiment row.
+Use `--no-save` to print scores, cost/PDF, coverage, and runtimes without creating
+or modifying `experiment.csv` or its output directory. It runs the same scoring
+and model loading as a saved evaluation. This flag also works with `--mcq-root`
+and `--mcq-json`; no experiment number is allocated in print-only mode.
 
 Golden references can use `neet_<PDF>/<PDF>_mcqs.json`,
 `<PDF>/final_mcqs.json`, `<PDF>/<PDF>_mcqs.json`, or flat `<PDF>_mcqs.json` /

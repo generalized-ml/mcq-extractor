@@ -531,6 +531,8 @@ def main() -> None:
     parser.add_argument("--experiment-name", help="Experiment label; defaults to folder name for folder input")
     parser.add_argument("--experiment-number", type=int, help="Defaults to the next unused experiment number")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument('--no-save', action='store_true',
+                        help='Print evaluation results without creating or updating experiment.csv')
     parser.add_argument("--model", default=DEFAULT_MODEL, help="SentenceTransformer model ID or local directory")
     parser.add_argument("--model-revision", help="Optional model commit for reproducible runs")
     parser.add_argument("--local-files-only", action="store_true", help="Do not download model files")
@@ -591,11 +593,13 @@ def main() -> None:
         summary.update(evaluation_model_loading_seconds=loading_seconds,
                        evaluation_scoring_seconds=time.perf_counter() - scoring_started,
                        evaluation_wall_seconds=time.perf_counter() - started)
-        number, details = save_results(args.output_dir.expanduser().resolve(), rows, summary,
-                                       metadata, args.experiment_number, llm_calls=llm_calls)
+        number, details = None, None
+        if not args.no_save:
+            number, details = save_results(args.output_dir.expanduser().resolve(), rows, summary,
+                                           metadata, args.experiment_number, llm_calls=llm_calls)
     except (OSError, ValueError, RuntimeError, ImportError) as exc:
         parser.exit(1, f"Evaluation failed: {exc}\n")
-    print(f"Experiment: {number}")
+    print(f"Experiment: {number}" if number is not None else f'Experiment: {pipeline} (print only)')
     print(f"keyword_score: {summary['keyword_score']:.8f}")
     print(f"semantic_score: {summary['semantic_score']:.8f}")
     print(f"aggregate_score: {summary['aggregate_score']:.8f}")
@@ -609,7 +613,7 @@ def main() -> None:
           f"missing: {summary['method_missing_time_pdfs']}; unfinished timing: {summary['method_unfinished_time_pdfs']}")
     print(f"PDFs with unrecorded earlier work: {summary['method_incomplete_history_pdfs']}")
     print(f"Evaluation wall time: {summary['evaluation_wall_seconds']:.3f}s")
-    print(f"Experiment scores: {details}")
+    print(f"Experiment scores: {details}" if details is not None else 'Results printed only; CSV not updated.')
     if summary["solution_golden_empty_count"]:
         print(f"Note: {summary['solution_golden_empty_count']} golden answers are empty; "
               "their solution contribution is zero.")

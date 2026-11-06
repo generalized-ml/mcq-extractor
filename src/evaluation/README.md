@@ -5,6 +5,9 @@ Run `PYTHONPATH=src .venv/bin/python -m evaluation --help`.
 ```bash
 .venv/bin/python -m evaluation outputs/json_crops_my_all
 .venv/bin/python -m evaluation outputs/pdf_to_jsons_all dataset/golden
+
+# Print results without creating or changing experiment.csv:
+.venv/bin/python -m evaluation outputs/json_crops_my_all --no-save
 ```
 
 Provide any experiment folder, optionally followed by a golden dataset folder
