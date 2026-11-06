@@ -7,7 +7,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from evaluation.evaluate import save_results
+from evaluation.evaluate import cost_per_pdf_report, load_combined, save_results
+from evaluation.plot_experiments import read_experiments
 from pdf_to_jsons.runtime import RuntimeRecorder, combine_runtimes, recorded_runtime
 
 
@@ -90,3 +91,53 @@ class RuntimeReportingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'different schema'):
             save_results(self.root, [], {'keyword_score': .9}, {'experiment_name': 'pdf_to_json_my'}, None)
         self.assertEqual(path.read_text(), original)
+
+    def test_cost_per_pdf_averages_available_costs_and_exposes_unknowns(self):
+        report = cost_per_pdf_report([{'llm_cost_usd': .1}, {'llm_cost_usd': .3},
+                                      {'llm_cost_usd': None}], 4)
+        self.assertAlmostEqual(report['llm_cost_per_pdf_usd'], .2)
+        self.assertEqual(report['llm_cost_pdf_count'], 2)
+        self.assertEqual(report['llm_missing_cost_pdfs'], 2)
+        self.assertEqual(cost_per_pdf_report([{'llm_cost_usd': 0}], 1)['llm_cost_per_pdf_usd'], 0)
+        self.assertIsNone(cost_per_pdf_report([{'llm_cost_usd': None}], 1)['llm_cost_per_pdf_usd'])
+
+    def test_combined_cost_uses_pdf_count_not_question_count(self):
+        golden_root = self.root / 'golden'
+        inputs = self.root / 'inputs'
+        question = {'question_number': '1', 'question_text': 'Fixture',
+                    'options': ['a', 'b', 'c', 'd'], 'correct_answer': '1'}
+        for year in (2021, 2022, 2023):
+            folder = golden_root / f'neet_{year}'
+            folder.mkdir(parents=True)
+            (folder / f'{year}_mcqs.json').write_text(json.dumps([question]))
+        for year, cost in ((2021, .1), (2022, .3)):
+            folder = inputs / str(year)
+            folder.mkdir(parents=True)
+            (folder / 'final_mcqs.json').write_text(json.dumps({
+                'questions': [question], 'llm_calls': [{'usage': {'cost': cost}}]}))
+        _, _, summary, _, _, _ = load_combined(inputs, 'pdf_to_json_my', golden_root, [2021, 2022, 2023])
+        self.assertAlmostEqual(summary['llm_cost_per_pdf_usd'], .2)
+        self.assertEqual(summary['llm_cost_pdf_count'], 2)
+        self.assertEqual(summary['llm_missing_cost_pdfs'], 1)
+
+    def test_cost_schema_upgrade_preserves_legacy_total_without_relabeling(self):
+        path = self.root / 'experiment.csv'
+        path.write_text('experiment_number,experiment_name,keyword_score,llm_cost_usd\n1,pdf_to_json,0.7,5\n')
+        save_results(self.root, [], {'keyword_score': .9, 'llm_cost_usd': .4,
+                                     'llm_cost_per_pdf_usd': .2, 'llm_cost_pdf_count': 2},
+                     {'experiment_name': 'pdf_to_json_my'}, None)
+        with path.open() as stream:
+            rows = list(csv.DictReader(stream))
+        self.assertNotIn('llm_cost_usd', rows[1])
+        self.assertEqual(rows[0]['legacy_llm_cost_usd'], '5')
+        self.assertEqual(rows[0]['llm_cost_per_pdf_usd'], '')
+        self.assertEqual(float(rows[1]['llm_cost_per_pdf_usd']), .2)
+        self.assertEqual(rows[1]['legacy_llm_cost_usd'], '')
+
+    def test_plot_reads_cost_per_pdf_and_flags_partial_pdf_coverage(self):
+        path = self.root / 'experiment.csv'
+        path.write_text('experiment_number,experiment_name,keyword_score,semantic_score,'
+                        'llm_cost_per_pdf_usd,llm_missing_cost_pdfs\n1,pdf_to_json_my,0.8,0.9,0.2,1\n')
+        row = read_experiments(path)[0]
+        self.assertEqual(row['cost'], .2)
+        self.assertTrue(row['partial_cost'])

@@ -1,4 +1,4 @@
-"""Plot quality scores and recorded LLM API cost from the shared experiment CSV."""
+"""Plot quality scores and average recorded LLM API cost per PDF."""
 from __future__ import annotations
 
 import argparse
@@ -15,8 +15,8 @@ def read_experiments(path: Path) -> list[dict]:
         required = {'experiment_number', 'experiment_name', 'keyword_score', 'semantic_score'}
         if not required.issubset(reader.fieldnames or []):
             raise ValueError(f'CSV must include {sorted(required)}')
-        if not {'llm_cost_usd', 'llm_api_cost'}.intersection(reader.fieldnames or []):
-            raise ValueError('CSV must include llm_cost_usd or llm_api_cost')
+        if not {'llm_cost_per_pdf_usd', 'llm_cost_usd', 'llm_api_cost'}.intersection(reader.fieldnames or []):
+            raise ValueError('CSV must include llm_cost_per_pdf_usd')
         rows = list(reader)
     if not rows:
         raise ValueError('No experiments to plot')
@@ -31,13 +31,15 @@ def read_experiments(path: Path) -> list[dict]:
                                   (row['keyword_score'] + row['semantic_score']) / 2)
         if not math.isfinite(row['aggregate_score']) or not 0 <= row['aggregate_score'] <= 1:
             raise ValueError(f'Invalid aggregate_score for experiment {row["experiment_number"]}')
-        raw = row.get('llm_cost_usd', row.get('llm_api_cost', '')).strip()
+        # Historical totals have no reliable PDF denominator; leave them unknown.
+        raw = row.get('llm_cost_per_pdf_usd', '').strip()
         row['cost'] = None if raw.lower() in ('', 'none', 'null', 'nan') else float(raw)
         if row['cost'] is not None and (not math.isfinite(row['cost']) or row['cost'] < 0):
             raise ValueError('LLM API cost must be nonnegative and finite')
         if row.get('llm_cost_currency', 'USD') not in ('', 'USD'):
             raise ValueError('Only USD costs can be compared on this chart')
-        row['partial_cost'] = int(row.get('llm_missing_cost_calls') or 0) > 0
+        row['partial_cost'] = (int(row.get('llm_missing_cost_calls') or 0) > 0
+                               or int(row.get('llm_missing_cost_pdfs') or 0) > 0)
     return sorted(rows, key=lambda row: int(row['experiment_number']))
 
 
@@ -81,7 +83,7 @@ def plot_experiments(csv_path: Path, output: Path) -> Path:
         ax.set_ylim(0, 1.08)
         ax.yaxis.set_major_locator(MultipleLocator(.2))
         ax.set_ylabel('Quality score · higher is better', labelpad=12)
-        cost_ax.set_ylabel('Recorded LLM API cost (USD) · lower is better', labelpad=14, color='#8D541A')
+        cost_ax.set_ylabel('Recorded LLM API cost/PDF (USD) · lower is better', labelpad=14, color='#8D541A')
         cost_ax.yaxis.set_major_formatter(FuncFormatter(lambda value, _: f'${value:.3f}'))
         ax.set_xticks(x, [f'Experiment {r["experiment_number"]}\n{r["experiment_name"]}' for r in rows])
         ax.tick_params(axis='x', length=0, pad=13, labelrotation=20 if len(rows)>4 else 0)
@@ -90,13 +92,13 @@ def plot_experiments(csv_path: Path, output: Path) -> Path:
         for axis in (ax, cost_ax):
             for spine in axis.spines.values():
                 spine.set_visible(False)
-        fig.text(.09, .95, 'Extraction quality & LLM cost', fontsize=21, weight='bold')
-        fig.text(.09, .90, 'Keyword, semantic, and mean scores use the left axis; API cost uses the right axis.',
+        fig.text(.09, .95, 'Extraction quality & LLM cost per PDF', fontsize=21, weight='bold')
+        fig.text(.09, .90, 'Keyword, semantic, and mean scores use the left axis; API cost/PDF uses the right axis.',
                  fontsize=10, color='#64748B')
         fig.legend(handles=[Patch(facecolor=c, label=l) for c,l in zip(colors,
-                   ('keyword_score', 'semantic_score', 'aggregate_score', 'llm_api_cost'))],
+                   ('keyword_score', 'semantic_score', 'aggregate_score', 'llm_cost_per_pdf_usd'))],
                    loc='upper left', bbox_to_anchor=(.08,.87), ncol=4, frameon=False)
-        note = '* Hatched costs are partial: some calls have no reported cost. Unknown costs are not zero.'
+        note = '* Costs have incomplete coverage: some calls or PDFs have unknown cost. Unknown costs are not zero.'
         if not any(r['partial_cost'] or r['cost'] is None for r in rows):
             note = 'Cost is reported extraction/review API usage; local computation is excluded.'
         fig.text(.09, .025, note, fontsize=9, color='#64748B')

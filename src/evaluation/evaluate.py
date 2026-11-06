@@ -34,6 +34,15 @@ TIMING_DEFAULTS = {
     'method_runtime_scope': None, 'evaluation_model_loading_seconds': None,
     'evaluation_scoring_seconds': None, 'evaluation_wall_seconds': None,
 }
+COST_DEFAULTS = {'llm_cost_per_pdf_usd': None, 'llm_cost_pdf_count': None,
+                 'llm_missing_cost_pdfs': None}
+
+
+def cost_per_pdf_report(reports: list[dict], pdf_count: int) -> dict:
+    """Average recorded costs over PDFs with costs; expose unknown PDF costs."""
+    costs = [report['llm_cost_usd'] for report in reports if report['llm_cost_usd'] is not None]
+    return {'llm_cost_per_pdf_usd': math.fsum(costs) / len(costs) if costs else None,
+            'llm_cost_pdf_count': len(costs), 'llm_missing_cost_pdfs': pdf_count - len(costs)}
 
 
 def llm_cost_report(payload: Any) -> tuple[list[dict], dict]:
@@ -416,6 +425,7 @@ def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]
         cost[key] = math.fsum(values) if key == "llm_cost_usd" and values else (
             sum(values) if values else None)
     cost.update(combine_runtimes(runtimes))
+    cost.update(cost_per_pdf_report(cost_reports, len(years)))
     return predictions, golden, cost, input_hash.hexdigest(), golden_hash.hexdigest(), per_year
 
 
@@ -439,14 +449,22 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
         number = experiment_number if experiment_number is not None else max(used, default=0) + 1
         if number in used:
             raise ValueError(f"Experiment {number} already exists; choose a new number")
+        added_defaults = {**COST_DEFAULTS, **TIMING_DEFAULTS}
         record = {"experiment_number": number, **metadata,
-                  **{key: value for key, value in summary.items() if key not in TIMING_DEFAULTS},
-                  **{key: summary.get(key, default) for key, default in TIMING_DEFAULTS.items()}}
+                  **{key: value for key, value in summary.items()
+                     if key not in added_defaults and key != 'llm_cost_usd'},
+                  **{key: summary.get(key, default) for key, default in added_defaults.items()}}
+        if header and ('llm_cost_usd' in header or 'legacy_llm_cost_usd' in header):
+            # Preserve historical totals without presenting them as cost/PDF.
+            record['legacy_llm_cost_usd'] = None
         if header is not None and header != list(record):
-            # Upgrade only additive timing columns; historical runtimes stay blank.
-            old_fields = [key for key in record if key not in TIMING_DEFAULTS]
-            if header != old_fields:
+            ignored = set(added_defaults) | {'llm_cost_usd', 'legacy_llm_cost_usd'}
+            old_fields = [key for key in record if key not in ignored]
+            if [key for key in header if key not in ignored] != old_fields:
                 raise ValueError("Existing experiment.csv has a different schema; use another output directory")
+            for previous in existing:
+                if 'llm_cost_usd' in previous:
+                    previous['legacy_llm_cost_usd'] = previous.pop('llm_cost_usd')
             stream.seek(0)
             stream.truncate()
             upgrade = csv.DictWriter(stream, fieldnames=list(record))
@@ -503,6 +521,7 @@ def main() -> None:
             predictions = load_questions(prediction_path)
             golden = load_questions(golden_path, strict=True)
             llm_calls, cost_summary = llm_cost_report(json.loads(prediction_path.read_text(encoding="utf-8")))
+            cost_summary.update(cost_per_pdf_report([cost_summary], 1))
             cost_summary.update(recorded_runtime(prediction_path, pipeline))
             prediction_hash = hashlib.sha256(prediction_path.read_bytes()).hexdigest()
             reference_hash = hashlib.sha256(golden_path.read_bytes()).hexdigest()
@@ -534,8 +553,9 @@ def main() -> None:
     print(f"keyword_score: {summary['keyword_score']:.8f}")
     print(f"semantic_score: {summary['semantic_score']:.8f}")
     print(f"aggregate_score: {summary['aggregate_score']:.8f}")
-    cost = summary["llm_cost_usd"]
-    print(f"Recorded LLM cost (USD): {cost:.8f}" if cost is not None else "Recorded LLM cost (USD): unknown")
+    cost = summary["llm_cost_per_pdf_usd"]
+    print(f"Recorded LLM cost/PDF (USD): {cost:.8f}" if cost is not None else "Recorded LLM cost/PDF (USD): unknown")
+    print(f"PDFs with reported cost: {summary['llm_cost_pdf_count']}; unknown: {summary['llm_missing_cost_pdfs']}")
     print(f"Calls with reported cost: {summary['llm_priced_calls']}/{summary['llm_recorded_calls']}")
     method_seconds = summary['method_wall_seconds']
     print(f'Method wall time: {method_seconds:.3f}s' if method_seconds is not None else 'Method wall time: unknown')

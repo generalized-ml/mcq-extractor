@@ -98,6 +98,43 @@ Per-question CSVs, metadata JSONs, and per-call CSVs are no longer generated.
 Existing older reports are left untouched. Detailed LLM calls remain in the input
 pipeline JSON.
 
+## Runtime per method
+
+Each experiment row also records the extraction method's elapsed time:
+
+- `method_wall_seconds`: recorded PDF pipeline wall time, in seconds. For
+  `--mcq-root`, this is the sum of available per-PDF durations, not the wall time
+  of a job that might have processed several PDFs concurrently.
+- `method_timed_pdfs` / `method_missing_time_pdfs`: timing coverage across PDFs.
+- `method_unfinished_time_pdfs`: PDFs with an interrupted/unfinalized timing
+  session; their recorded duration is a subtotal through the last checkpoint.
+- `method_incomplete_history_pdfs`: PDFs first timed while resuming older output,
+  where work before timing was added cannot be reconstructed.
+- `method_runtime_scope`: identifies what was measured.
+- `evaluation_model_loading_seconds`, `evaluation_scoring_seconds`, and
+  `evaluation_wall_seconds`: evaluation durations, kept separate from extraction.
+  Scoring includes embedding generation. Evaluation wall time includes input
+  loading and model loading, ending before writing the CSV.
+
+The original, Paddle, native HF, and crop/vision entry points save `runtime.json`
+beside each PDF's `pipeline.json` or final JSON. Elapsed time covers preparation,
+model loading, OCR/extraction, review, and checkpoint work performed during each
+invocation. Reused crop/conversion work is excluded. The timer stops before any
+automatic evaluation. Repeated checkpoint snapshots update the same session;
+resume creates another session. Durations add active invocation time without
+including idle time between commands. Parallel OCR measures elapsed wall time,
+so concurrent question times are not added together.
+
+The evaluator reads these sidecars automatically for each method and each year.
+It never estimates wall time from summed question times or file timestamps.
+Historical outputs without a sidecar have blank durations; partial coverage
+produces a subtotal with explicit coverage counts. A bounded run records only
+work completed/attempted so far, not an estimate for the whole PDF.
+
+When adding timing columns to an otherwise compatible `experiment.csv`, the
+writer preserves existing rows and scores and leaves their timing cells blank.
+Other incompatible schema changes still require a new output directory.
+
 ## LLM costs
 
 Evaluation automatically reads the extraction costs already saved in the MCQ

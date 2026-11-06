@@ -137,7 +137,9 @@ class EvaluationTests(unittest.TestCase):
                 main()
             with (output / "experiment.csv").open() as stream:
                 summary = next(csv.DictReader(stream))
-            self.assertAlmostEqual(float(summary["llm_cost_usd"]), 0.0004313)
+            self.assertAlmostEqual(float(summary["llm_cost_per_pdf_usd"]), 0.0004313)
+            self.assertEqual(summary['llm_cost_pdf_count'], '1')
+            self.assertNotIn('llm_cost_usd', summary)
             self.assertEqual(summary["llm_total_tokens"], "120")
             self.assertEqual(summary["llm_priced_calls"], "1")
             self.assertEqual([p.name for p in output.iterdir()], ["experiment.csv"])
