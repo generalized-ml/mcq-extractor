@@ -1,8 +1,9 @@
-"""Local Apple Vision OCR and conservative text-to-MCQ parsing."""
+"""Portable local crop OCR and conservative text-to-MCQ parsing."""
 
 from __future__ import annotations
 
 import re
+import math
 import sys
 from typing import Any
 
@@ -46,23 +47,70 @@ class MacVisionOCR:
                                   language_preference=self.languages).recognize(px=True)
         lines = [{"text": str(text), "confidence": float(confidence), "bbox": list(box)}
                  for text, confidence, box in annotations]
-        # Group fragments on a shared row, then read left to right (inline options).
-        rows: list[list[dict]] = []
-        for line in sorted(lines, key=lambda item: (item["bbox"][1], item["bbox"][0])):
-            center = (line["bbox"][1] + line["bbox"][3]) / 2
-            if rows:
-                previous = rows[-1][0]["bbox"]
-                previous_center = (previous[1] + previous[3]) / 2
-                same_row = abs(center - previous_center) < min(previous[3] - previous[1], line["bbox"][3] - line["bbox"][1]) * .5
-            else:
-                same_row = False
-            if same_row:
-                rows[-1].append(line)
-            else:
-                rows.append([line])
-        text = "\n".join("  ".join(item["text"] for item in sorted(row, key=lambda item: item["bbox"][0])) for row in rows)
-        return {"text": text, "lines": lines, "recognition": recognition,
-                "mean_confidence": sum(line["confidence"] for line in lines) / len(lines) if lines else 0.0}
+        return format_lines(lines, recognition=recognition)
+
+
+def format_lines(lines: list[dict], *, recognition: str = 'accurate') -> dict:
+    # Group fragments on a shared row, then read left to right (inline options).
+    rows: list[list[dict]] = []
+    for line in sorted(lines, key=lambda item: (item["bbox"][1], item["bbox"][0])):
+        center = (line["bbox"][1] + line["bbox"][3]) / 2
+        if rows:
+            previous = rows[-1][0]["bbox"]
+            previous_center = (previous[1] + previous[3]) / 2
+            same_row = abs(center - previous_center) < min(previous[3] - previous[1], line["bbox"][3] - line["bbox"][1]) * .5
+        else:
+            same_row = False
+        if same_row:
+            rows[-1].append(line)
+        else:
+            rows.append([line])
+    text = "\n".join("  ".join(item["text"] for item in sorted(row, key=lambda item: item["bbox"][0])) for row in rows)
+    return {"text": text, "lines": lines, "recognition": recognition,
+            "mean_confidence": sum(line["confidence"] for line in lines) / len(lines) if lines else 0.0}
+
+
+def resolve_ocr_backend(backend: str, *, platform: str | None = None) -> str:
+    if backend == 'auto':
+        return 'vision' if (platform or sys.platform) == 'darwin' else 'hf'
+    if backend not in ('vision', 'hf'):
+        raise ValueError(f'Unknown crop OCR backend: {backend}')
+    return backend
+
+
+class HFMobileCropOCR:
+    """Adapt native PP-OCRv5 text/line polygons to the crop engine's pixel boxes."""
+
+    def __init__(self, *, device='auto', local_files_only=False):
+        try:
+            from pdf_to_json_my.ocr import HFMobileReader
+            self.reader = HFMobileReader(device=device, local_files_only=local_files_only)
+        except ImportError as exc:
+            raise RuntimeError("Install portable crop OCR: python -m pip install -e '.[my,crop]'") from exc
+        if self.reader.device == 'cpu':
+            import torch
+            torch.set_num_threads(2)
+
+    def __call__(self, image: Any, *, recognition: str = 'accurate') -> dict:
+        result = self.reader.read_image(image)
+        lines = []
+        for line in result['lines']:
+            points = line['box']
+            xs, ys = [float(p[0]) for p in points], [float(p[1]) for p in points]
+            if not xs or not all(math.isfinite(v) for v in xs + ys):
+                raise ValueError('Native crop OCR returned invalid polygon coordinates')
+            score = float(line['score'])
+            lines.append({'text': str(line['text']),
+                          'confidence': score if math.isfinite(score) else 0.0,
+                          'bbox': [min(xs), min(ys), max(xs), max(ys)]})
+        return {**format_lines(lines, recognition=recognition), 'backend': 'hf', 'device': self.reader.device}
+
+
+def create_crop_ocr(backend: str, *, languages=None, device='auto', local_files_only=False):
+    backend = resolve_ocr_backend(backend)
+    if backend == 'vision':
+        return MacVisionOCR(languages)
+    return HFMobileCropOCR(device=device, local_files_only=local_files_only)
 
 
 def parse_question(text: str, number: str, *, require_answer: bool = True) -> dict:

@@ -108,14 +108,21 @@ class HFMobileReader:
             result['timings'] = profiler.report(result['seconds'])
         return result
 
+    def read_image(self, image, *, profile=False):
+        """Read an in-memory PIL image without writing temporary crop files."""
+        return self.read(image, profile=profile)
+
     def _read(self, path, profiler):
         import torch
         import numpy as np
         from PIL import Image
         start = time.monotonic()
         with profiler.measure('image_loading'):
-            with Image.open(path) as source:
-                image = source.convert('RGB')
+            if isinstance(path, Image.Image):
+                image = path.convert('RGB')
+            else:
+                with Image.open(path) as source:
+                    image = source.convert('RGB')
         lines = []
         try:
             with torch.inference_mode():

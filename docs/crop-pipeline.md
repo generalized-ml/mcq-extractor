@@ -1,14 +1,25 @@
 # Crop detection and extraction
 
 `json_crops.sh` processes 2021 using existing Docling JSON when available, crops
-question regions, runs Apple Vision OCR, sends the finalized images to OpenRouter,
+question regions, runs local OCR, sends the finalized images to OpenRouter,
 and evaluates final MCQs against the golden dataset. It loads the API key from
-the ignored `.env` file. Run on macOS with Vision access:
+the ignored `.env` file. The default is Apple Vision on macOS and native
+PP-OCRv5 on Linux/Windows. The portable path requires `.[my,crop]`.
+
+On macOS with Vision access:
 
 ```bash
 python -m pip install -e '.[crop,eval]'
 JSON_CROPS_OUTPUT=outputs/json_crops_fast bash json_crops.sh
 ```
+
+On Linux, install `.[my,crop,eval]` and select `--ocr-backend hf` for the shared
+crop CLI. The native end-to-end pipeline exposes the same choice as `--crop-ocr hf`.
+Portable crop checks return pixel boxes and line confidence through the existing
+OCR contract. Initial Docling conversion uses RapidOCR with `backend='torch'`;
+macOS Vision conversion remains available through the Vision crop backend.
+Docling's official [OCR installation guide](https://docling-project.github.io/docling/getting_started/installation/)
+lists its supported OCR engines. OCR output is not guaranteed to match Vision.
 
 ## Reverse crop detection
 

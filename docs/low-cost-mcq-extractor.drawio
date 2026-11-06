@@ -70,7 +70,7 @@
         <mxCell id="crops-line-0" parent="1" vertex="1" value="Reuse saved question images" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
           <mxGeometry x="324" y="265" width="210" height="19" as="geometry" />
         </mxCell>
-        <mxCell id="crops-line-1" parent="1" vertex="1" value="or Docling + Vision boundaries" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+        <mxCell id="crops-line-1" parent="1" vertex="1" value="Docling + local OCR bounds" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
           <mxGeometry x="324" y="284" width="210" height="19" as="geometry" />
         </mxCell>
         <mxCell id="workers" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#ecfdf5;strokeColor=#e2e8f0;strokeWidth=1;">

@@ -60,8 +60,9 @@ source .venv/bin/activate
 python -m pip install -e '.[my,crop,eval]'
 ```
 
-The `crop` extra includes macOS-specific Vision support. To process already
-generated crops on another platform, install `.[my,eval]` and pass `--crops-dir`.
+Crop generation selects Apple Vision on macOS and native PP-OCRv5 on Linux,
+including Colab. Linux Docling conversion uses RapidOCR's PyTorch backend.
+To process already generated crops, install `.[my,eval]` and pass `--crops-dir`.
 Model weights download on first use and are cached. `--local-files-only` requires
 the native OCR models to be fully cached.
 
@@ -74,6 +75,31 @@ OPENROUTER_MODEL=google/gemini-2.5-flash-lite
 
 The native pipeline loads this file. Local OCR with `--ocr-only` works without
 an API key.
+
+### Google Colab / Linux
+
+After updating the cloned repository, install dependencies in a notebook cell:
+
+```python
+%cd /content/mcq-extractor
+%pip install -e '.[my,crop,eval]'
+```
+
+Run from the PDF alone, using a fresh output directory:
+
+```python
+!DOCLING_PYTHON=python \
+  JSON_CROPS_MY_OUTPUT=/content/mcq-extractor/outputs/json_crops_my_all \
+  bash /content/mcq-extractor/json_crops_my.sh \
+  /content/mcq-extractor/dataset/2023.pdf \
+  --crop-ocr hf
+```
+
+This creates crops, runs native OCR, and reviews selected questions when the
+OpenRouter key is configured. Add `--ocr-only` for local work only. No saved
+crops or macOS libraries are needed. `--crop-device cpu` forces CPU crop checks;
+the default `auto` selects CUDA when available. The native OCR stage has its
+own `--device` setting. Initial model downloads require network access.
 
 ## Extract a PDF
 

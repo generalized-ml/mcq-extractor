@@ -45,7 +45,7 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
     identity = {"pdf_sha256": file_hash(pdf), "code_sha256": code_hash(),
                 "settings": {key: getattr(args, key) for key in (
                     "det_model", "rec_model", "det_revision", "rec_revision", "device", "batch_size", "confidence_threshold",
-                    "max_low_token_fraction", "allow_missing_answer", "review_model")},
+                    "max_low_token_fraction", "allow_missing_answer", "review_model", "crop_ocr", "crop_device")},
                 "crops_dir": str(args.crops_dir.expanduser().resolve()) if args.crops_dir else None,
                 "raw_json": str(args.raw_json.expanduser().resolve()) if args.raw_json else None}
     identity["local_models"] = {}
@@ -230,6 +230,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, default=WORKSPACE / "outputs/json_crops_my")
     parser.add_argument("--crops-dir", type=Path, help="Existing verified Docling crop run, e.g. outputs/json_crops_fast/2021")
     parser.add_argument("--raw-json", type=Path, help="Docling source JSON when generating new crops")
+    parser.add_argument('--crop-ocr', choices=('auto', 'vision', 'hf'), default='auto',
+                        help='Crop generation OCR: Vision on macOS, native PP-OCRv5 on Linux/Colab')
+    parser.add_argument('--crop-device', choices=('auto', 'cpu', 'cuda', 'mps'), default='auto')
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--limit", type=int, help="Maximum new questions to transcribe this run")
     parser.add_argument("--det-model", default=DET_MODEL, help="HF repo ID or local save_pretrained directory")
@@ -270,7 +273,7 @@ def main():
     try:
         run(args)
     except (ImportError, OSError, RuntimeError, ValueError, KeyError, subprocess.CalledProcessError) as exc:
-        parser.exit(1, f"Paddle pipeline failed: {exc}\n")
+        parser.exit(1, f"Native OCR pipeline failed: {exc}\n")
 
 
 if __name__ == "__main__":

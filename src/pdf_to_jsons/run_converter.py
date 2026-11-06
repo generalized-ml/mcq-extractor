@@ -37,6 +37,11 @@ def run_converter(
     if ocr_engine == "ocrmac":
         from docling.datamodel.pipeline_options import OcrMacOptions
         options.ocr_options = OcrMacOptions(lang=["en-US"], recognition="accurate", framework="vision")
+    elif ocr_engine == 'rapidocr':
+        from docling.datamodel.pipeline_options import RapidOcrOptions
+        options.ocr_options = RapidOcrOptions(backend='torch', lang=['en'])
+    elif ocr_engine is not None:
+        raise ValueError(f'Unknown Docling OCR engine: {ocr_engine}')
     else:
         options.ocr_options.lang = ["en"]
     options.do_table_structure = True

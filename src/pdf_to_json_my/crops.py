@@ -32,6 +32,9 @@ def prepare_crops(pdf: Path, root: Path, args) -> tuple[list[dict], dict]:
                 source = existing.parent
         if source is None:
             values = [str(pdf), str(stage)]
+            values.extend(['--ocr-backend', args.crop_ocr, '--ocr-device', args.crop_device])
+            if args.local_files_only:
+                values.append('--local-files-only')
             if args.raw_json:
                 values.extend(["--raw-json", str(args.raw_json.expanduser().resolve())])
             if existing.is_file():

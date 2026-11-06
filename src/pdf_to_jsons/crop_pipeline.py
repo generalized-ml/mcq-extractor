@@ -1,4 +1,4 @@
-"""Extract MCQs with Docling layout, shrinking PDF crops, and local macOS OCR."""
+"""Extract MCQs with Docling layout, shrinking PDF crops, and portable local OCR."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .crop_layout import Box, Segment, build_layout, page_boxes, question_segments
-from .crop_ocr import MacVisionOCR, parse_question
+from .crop_ocr import create_crop_ocr, resolve_ocr_backend, parse_question
 from .hybrid_mcq.run import save_json
 from .pdf_to_mcqs import file_hash
 from .run_converter import run_converter
@@ -167,10 +167,14 @@ def shrink_question(number: str, segments: list[Segment], renderer: Any, ocr: An
         raise
 
 
-def code_identity() -> str:
+def code_identity(backend: str = 'vision') -> str:
     digest = hashlib.sha256()
     for filename in ("crop_pipeline.py", "crop_layout.py", "crop_ocr.py", "run_converter.py"):
         digest.update(Path(__file__).with_name(filename).read_bytes())
+    if backend == 'hf':
+        native = Path(__file__).parent.parent / 'pdf_to_json_my'
+        for filename in ('ocr.py', 'confidence.py'):
+            digest.update((native / filename).read_bytes())
     return digest.hexdigest()
 
 
@@ -178,14 +182,19 @@ def run(args: argparse.Namespace) -> Path:
     pdf = args.pdf.expanduser().resolve()
     if not pdf.is_file() or pdf.suffix.lower() != ".pdf":
         raise ValueError(f"Expected an existing PDF: {pdf}")
-    # Fail before converting a large PDF when Apple OCR isn't available.
-    ocr = MacVisionOCR(args.languages)
+    backend = resolve_ocr_backend(args.ocr_backend)
+    # Initialize before expensive conversion to detect unavailable OCR early.
+    print(f'Crop OCR: {backend} (device={args.ocr_device})', flush=True)
+    ocr = create_crop_ocr(backend, languages=args.languages, device=args.ocr_device,
+                          local_files_only=args.local_files_only)
     root = args.output.expanduser().resolve() / pdf.stem
     manifest_path = root / "crop_pipeline.json"
     settings = {key: getattr(args, key) for key in
                 ("dpi", "step", "max_steps", "max_regions", "padding",
                  "min_confidence", "allow_missing_answer", "languages")}
-    identity = {"pdf_sha256": file_hash(pdf), "code_sha256": code_identity(), "settings": settings}
+    settings.update(ocr_backend=backend, ocr_device=args.ocr_device,
+                    docling_ocr_engine='ocrmac' if backend == 'vision' else 'rapidocr')
+    identity = {"pdf_sha256": file_hash(pdf), "code_sha256": code_identity(backend), "settings": settings}
     if args.resume:
         if not manifest_path.is_file():
             raise ValueError("No crop pipeline checkpoint found; run without --resume first")
@@ -203,7 +212,8 @@ def run(args: argparse.Namespace) -> Path:
         root.mkdir(parents=True, exist_ok=True)
         raw_path = args.raw_json.expanduser().resolve() if args.raw_json else root / "raw" / f"{pdf.stem}_raw.json"
         if not args.raw_json:
-            run_converter(pdf, raw_path.parent, output_path=raw_path, ocr_engine="ocrmac")
+            run_converter(pdf, raw_path.parent, output_path=raw_path,
+                          ocr_engine='ocrmac' if backend == 'vision' else 'rapidocr')
         manifest = {"identity": identity, "crop_strategy": "next_anchor_shrink", "raw_json": str(raw_path), "raw_sha256": file_hash(raw_path), "results": {}}
     raw = json.loads(raw_path.read_text(encoding="utf-8"))
     if "document" in raw and raw.get("status") != "success":
@@ -227,7 +237,7 @@ def run(args: argparse.Namespace) -> Path:
         questions = [record["question"] for record in records.values()]
         save_json(root / "mcqs.json", {
             "source_pdf": str(pdf), "source_json": str(raw_path),
-            "extraction_method": "docling_layout_adaptive_crop_apple_vision",
+            "extraction_method": f"docling_layout_adaptive_crop_{'apple_vision' if backend == 'vision' else 'hf_mobile'}",
             "question_count": len(questions), "anchor_count": len(anchors),
             "pending_count": len(anchors) - len(records), "questions": questions,
             "review_candidates": [], "llm_calls": 0,
@@ -321,6 +331,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-regions", type=int, default=4)
     parser.add_argument("--min-confidence", type=float, default=.75)
     parser.add_argument("--languages", nargs="+", default=["en-US"])
+    parser.add_argument('--ocr-backend', choices=('auto', 'vision', 'hf'), default='auto',
+                        help='Crop OCR: Apple Vision on macOS, native HF PP-OCRv5 elsewhere')
+    parser.add_argument('--ocr-device', choices=('auto', 'cpu', 'cuda', 'mps'), default='auto')
+    parser.add_argument('--local-files-only', action='store_true', help='Use cached native crop OCR weights only')
     parser.add_argument("--allow-missing-answer", action="store_true", help="Allow papers without printed answers/solutions")
     return parser
 

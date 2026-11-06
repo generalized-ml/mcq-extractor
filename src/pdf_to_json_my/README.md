@@ -27,8 +27,20 @@ PYTHONPATH=src .venv/bin/python -m pdf_to_json_my dataset/pdfs/2021.pdf \
   --crops-dir outputs/json_crops_fast/2021 --output outputs/my_experiment
 ```
 
-Without `--crops-dir`, the existing Docling crop stage runs; install `.[my,crop]`
-for Apple Vision boundary checks. No layout model runs in the crop OCR stage.
+Without `--crops-dir`, the shared Docling crop stage runs; install `.[my,crop]`.
+`--crop-ocr auto` selects Apple Vision on macOS and native PP-OCRv5 on Linux or
+Windows. Force either with `--crop-ocr vision` / `--crop-ocr hf`. The native crop
+adapter reads PIL images in memory and returns text, confidence, and pixel boxes
+to the same crop-boundary protection and shrink/fallback logic. Confidence and
+recognition quality can differ from Apple Vision; compare the saved crop images.
+For the portable path, initial Docling PDF conversion uses RapidOCR with its
+PyTorch backend, so it also avoids Apple Vision and does not require ONNX Runtime.
+`--crop-device auto|cpu|cuda|mps` controls crop-check inference separately from
+the main OCR stage's `--device`. Native crop checks use the default pinned mobile
+models; custom `--det-model` / `--rec-model` apply to the main OCR stage.
+`--local-files-only` applies to native crop and question OCR weights; Docling's
+separate layout/table/RapidOCR model assets may still download on first conversion.
+No layout model runs in the crop OCR stage.
 Text-line detection remains necessary to isolate lines within each MCQ image.
 
 ## Models and caching
