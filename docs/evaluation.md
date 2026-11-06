@@ -138,10 +138,19 @@ Other incompatible schema changes still require a new output directory.
 ## LLM costs
 
 Evaluation automatically reads the extraction costs already saved in the MCQ
-JSON. `experiment.csv` adds `llm_cost_usd`, `llm_cost_currency`,
+JSON. Its cost metric is **average recorded USD per PDF**, rather than the total
+cost of all PDFs. `experiment.csv` reports `llm_cost_per_pdf_usd`,
+`llm_cost_pdf_count` (the denominator), `llm_missing_cost_pdfs`, `llm_cost_currency`,
 `llm_recorded_calls`, `llm_priced_calls`, `llm_missing_cost_calls`, and
 `llm_prompt_tokens`, `llm_completion_tokens`, and `llm_total_tokens`. The cost summary is also printed in the CLI.
 No additional argument, API key, or LLM call is required to read costs.
+
+For one PDF, cost/PDF is that PDF's recorded cost. For combined years, add the
+recorded costs and divide by the number of PDFs with reported costs. For example,
+$0.10 and $0.30 across two PDFs gives $0.20/PDF. A third PDF with unknown cost is
+excluded from the denominator and counted in `llm_missing_cost_pdfs`; it is never
+treated as free. The chart uses the same per-PDF metric and labels the USD axis
+accordingly. Partial per-call cost coverage still produces a marked subtotal.
 
 Costs use OpenRouter's saved `usage.cost` value; see its
 [usage accounting documentation](https://github.com/OpenRouterTeam/docs/blob/main/cookbook/administration/usage-accounting.mdx)
@@ -153,16 +162,18 @@ Costs cover the entire recorded extraction, including incomplete candidates
 and questions absent from the golden set.
 
 Missing or invalid costs remain null (blank in CSV), rather than being treated
-as free. A reported zero is retained. If only some costs are present,
-`llm_cost_usd` is their subtotal and `llm_missing_cost_calls` exposes the missing
-records. Token totals likewise include only reported values. Historical outputs
+as free. A reported zero is retained. `llm_missing_cost_calls` exposes missing
+per-call records; cost/PDF uses each priced PDF's recorded subtotal. Token totals
+likewise include only reported values. Historical outputs
 do not retain all failed or retried HTTP attempts, so these reports cannot
 reconstruct their charges or serve as a complete billing ledger. Evaluation
 itself uses local embeddings and makes no LLM requests.
 
-Existing `experiment.csv` files created before these additional columns have
-a different schema. Choose a new `--output-dir` when using such an older report;
-the evaluator preserves it rather than mixing incompatible rows.
+Compatible CSVs are upgraded when a new experiment is saved. Historical totals
+move to `legacy_llm_cost_usd`; their per-PDF cells remain blank because the PDF
+denominator was not recorded. Old scores are preserved and are not recomputed.
+Charts show historical rows without per-PDF values as unknown. Other incompatible
+schema changes still require a new `--output-dir`.
 
 Scores are decimal values, not percentages. Omit `--experiment-number` to use
 the next number automatically. Existing experiment numbers cannot be overwritten.
@@ -214,7 +225,7 @@ PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments
 ```
 
 This saves `results/experiments.png`. Scores use the left axis and recorded LLM
-API cost uses a separate USD axis. Unknown costs are shown as unknown; partial
+API cost per PDF uses a separate USD/PDF axis. Unknown costs are shown as unknown; partial
 costs are marked with an asterisk. Use `--output path.svg` for a vector chart.
 
 ## One row for all years
@@ -223,7 +234,8 @@ Use `--mcq-root` to combine 2021–2025 into one experiment row. Question IDs ar
 scoped by year before matching, so the same question number in two papers cannot
 collide. A missing yearly prediction file contributes zero predictions for that
 paper and lowers the aggregate scores; the CLI prints coverage for each year.
-Recorded LLM costs and token totals are summed across the available outputs.
+Recorded LLM costs are averaged across PDFs with reported costs; token totals
+are summed across the available outputs. Missing PDF costs have a separate count.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m evaluation \

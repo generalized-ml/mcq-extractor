@@ -8,6 +8,8 @@ Each method's recorded PDF wall time and evaluation duration are saved in separa
 columns. Pipeline runs save timing sessions in per-PDF `runtime.json` sidecars;
 missing historical timings stay blank, and combined runs report timing coverage.
 Existing compatible CSVs gain timing columns without recomputing old scores.
+Costs are reported as average USD per PDF (`llm_cost_per_pdf_usd`), with counts of
+PDFs with known and unknown costs. The chart uses this per-PDF metric too.
 
 The plot command is `PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments`.
 It reads the shared CSV and saves `results/experiments.png`.
