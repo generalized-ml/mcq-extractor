@@ -5,6 +5,10 @@ and labeling export. It reuses the repository's proven `pdf_to_jsons` Docling
 crop engine, OpenRouter transport/schema, and evaluator. It does not import or
 require `paddleocr` or `paddlepaddle`.
 
+See the [project overview](../../README.md) and editable
+[draw.io pipeline design](../../docs/low-cost-mcq-extractor.drawio) for the complete
+flow and local OCR model architecture.
+
 ## Setup and run
 
 ```bash

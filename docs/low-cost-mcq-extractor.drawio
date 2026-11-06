@@ -1,0 +1,227 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" agent="Low-Cost MCQ Extractor" version="24.7.17" type="device">
+  <diagram id="pdf-pipeline" name="01 — PDF to MCQ pipeline">
+    <mxGraphModel dx="1500" dy="1680" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1780" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="&lt;b&gt;LOW-COST MCQ EXTRACTOR&lt;/b&gt;&lt;br&gt;pdf_to_json_my · local OCR + selective text-only review" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f172a;strokeColor=#0f172a;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#ffffff;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="25" width="1420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="pdf" value="&lt;b&gt;Question-paper PDF&lt;/b&gt;&lt;br&gt;Source identity and SHA-256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="560" y="125" width="400" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="crops" value="&lt;b&gt;Prepare question crops · crops.py&lt;/b&gt;&lt;br&gt;Reuse a verified Docling crop run, or generate crops&lt;br&gt;Crop generation uses macOS Vision boundary checks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="245" width="600" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="verify" value="&lt;b&gt;Validate and resume · pipeline.py&lt;/b&gt;&lt;br&gt;Check PDF / code / model settings / artifact hashes&lt;br&gt;Skip completed questions; keep continuation parts together" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="390" width="600" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="queue" value="&lt;b&gt;Schedule whole questions · question_workers.py&lt;/b&gt;&lt;br&gt;P = min(X, max(1, floor(N physical cores / 2)))&lt;br&gt;Two CPU threads per worker; next free worker takes next question" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="535" width="600" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="workers" value="&lt;b&gt;Persistent local OCR workers · ocr.py&lt;/b&gt;&lt;br&gt;Load pinned detector + recognizer once per worker&lt;br&gt;Text-line detection → rectification → recognition batches of 8&lt;br&gt;Full text, line polygons, line confidence, timing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="695" width="600" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="cache" value="&lt;b&gt;Local model cache&lt;/b&gt;&lt;br&gt;Parent resolves / downloads weights once&lt;br&gt;Workers read cached weights&lt;br&gt;FP32 default · PyTorch + Transformers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="695" width="320" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="checkpoint" value="&lt;b&gt;Checkpoint and provenance&lt;/b&gt;&lt;br&gt;pipeline.json + runtime.json&lt;br&gt;Only parent writes artifacts&lt;br&gt;Per-question PID and OCR timing&lt;br&gt;Active wall-time sessions across resume" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="50" y="390" width="320" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="controls" value="&lt;b&gt;Bounded operation&lt;/b&gt;&lt;br&gt;--limit: new OCR questions&lt;br&gt;--workers: concurrent questions&lt;br&gt;--max-llm-questions: new reviews&lt;br&gt;--ocr-only: defer remote review&lt;br&gt;Single-core CPUs use one thread" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="535" width="320" height="170" as="geometry" />
+        </mxCell>
+        <mxCell id="parse" value="&lt;b&gt;Parent: parse + save drafts&lt;/b&gt;&lt;br&gt;structure.py → stem / 4 options / printed answer / solution&lt;br&gt;Save paddle_ocr.json, paddle_ocr.txt, mcq.json and mcqs.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="865" width="600" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="confidence" value="&lt;b&gt;Assess confidence and structure&lt;/b&gt;&lt;br&gt;confidence.py + route_question()&lt;br&gt;Through first Answer/Solution marker + 3 words (line granularity)&lt;br&gt;Score &amp;lt; 0.85, low-score fraction &amp;gt; 0.10, missing fields, or crop warnings" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#fb923c;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="1010" width="600" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="gate" value="&lt;b&gt;Review&lt;br&gt;required?&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff7ed;strokeColor=#fb923c;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;shape=rhombus;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="650" y="1170" width="220" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="local" value="&lt;b&gt;Keep local extraction&lt;/b&gt;&lt;br&gt;No remote request for this question" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#34d399;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1180" width="390" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="review" value="&lt;b&gt;Selected text-only LLM review · review.py&lt;/b&gt;&lt;br&gt;Draft JSON + full OCR text → OpenRouter&lt;br&gt;Default: google/gemini-2.5-flash-lite&lt;br&gt;--ocr-only leaves review pending" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f3ff;strokeColor=#a78bfa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="1155" width="390" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="final" value="&lt;b&gt;Ordered final_mcqs.json&lt;/b&gt;&lt;br&gt;Source crop/page references + routing reasons + review status&lt;br&gt;Recorded API costs; uncertain OCR remains flagged" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#34d399;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="1350" width="600" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="golden" value="&lt;b&gt;Golden JSON folder&lt;/b&gt;&lt;br&gt;Match PDF identity and question ID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="1070" y="1480" width="360" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="eval" value="&lt;b&gt;Optional evaluation · evaluation/&lt;/b&gt;&lt;br&gt;Keyword / semantic / aggregate scores&lt;br&gt;Recorded USD per PDF + coverage + runtimes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="1500" width="600" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="csv" value="&lt;b&gt;results/experiment.csv → plot&lt;/b&gt;&lt;br&gt;One row per command · --no-save prints only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#34d399;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="460" y="1640" width="600" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" source="pdf" target="crops" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" source="crops" target="verify" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" source="verify" target="queue" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" source="queue" target="workers" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" source="workers" target="parse" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="" source="parse" target="confidence" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="" source="confidence" target="gate" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-8" value="cached weights" source="cache" target="workers" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-9" value="validated state" source="verify" target="checkpoint" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;dashed=1;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-10" value="checkpoint each completion" source="parse" target="checkpoint" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;dashed=1;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="410" y="915" />
+              <mxPoint x="410" y="600" />
+              <mxPoint x="210" y="600" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-11" value="No" source="gate" target="local" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-12" value="Yes" source="gate" target="review" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-13" value="" source="local" target="final" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="265" y="1400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-14" value="" source="review" target="final" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1255" y="1400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-15" value="manual, or after completed extraction" source="final" target="eval" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-16" value="reference" source="golden" target="eval" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-17" value="save unless --no-save" source="eval" target="csv" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="ocr-architecture" name="02 — Local OCR architecture">
+    <mxGraphModel dx="1500" dy="1680" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="1540" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="&lt;b&gt;LOCAL OCR: DETECTOR + RECOGNIZER&lt;/b&gt;&lt;br&gt;ocr.py · native Transformers inference · FP32 default" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0f172a;strokeColor=#0f172a;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#ffffff;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="25" width="1420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="input" value="&lt;b&gt;One question crop&lt;/b&gt;&lt;br&gt;RGB image; repeat for continuation parts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="135" width="570" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="preprocess" value="&lt;b&gt;Detector preprocessing&lt;/b&gt;&lt;br&gt;Resize, normalize, convert pixels to model dtype" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="255" width="570" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="det-backbone" value="&lt;b&gt;Detection backbone: PP-LCNetV3&lt;/b&gt;&lt;br&gt;Lightweight CNN · width scale 0.75&lt;br&gt;Features from stages 2, 3, 4, and 5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="375" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="neck" value="&lt;b&gt;Multi-scale feature fusion&lt;/b&gt;&lt;br&gt;Residual squeeze-and-excitation layers&lt;br&gt;Upsample and concatenate features · 96 output channels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="515" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="head" value="&lt;b&gt;Segmentation head&lt;/b&gt;&lt;br&gt;Convolution + transposed convolution + sigmoid&lt;br&gt;Output: per-pixel text probability map" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="655" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="polygons" value="&lt;b&gt;Text polygon extraction&lt;/b&gt;&lt;br&gt;Convert probability map to FP32 for OpenCV&lt;br&gt;Threshold, contours, box scores, polygon expansion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="795" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="rectify" value="&lt;b&gt;Reading order + line rectification&lt;/b&gt;&lt;br&gt;Perspective crops; preserve aspect ratios&lt;br&gt;Group text lines into batches of 8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="70" y="935" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="rec-input" value="&lt;b&gt;Recognition preprocessing&lt;/b&gt;&lt;br&gt;Normalize each line independently&lt;br&gt;Pad to the widest line within its batch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="850" y="135" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="rec-backbone" value="&lt;b&gt;Recognition backbone: PP-LCNetV3&lt;/b&gt;&lt;br&gt;Lightweight CNN · width scale 0.95&lt;br&gt;Extract visual features from every text line" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="850" y="275" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="svtr" value="&lt;b&gt;SVTR visual encoder&lt;/b&gt;&lt;br&gt;Convolution layers + 2 attention blocks&lt;br&gt;Hidden size 120 · 8 attention heads" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="850" y="415" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="classify" value="&lt;b&gt;Character classification&lt;/b&gt;&lt;br&gt;Linear head: 18,385 output classes including CTC blank&lt;br&gt;Softmax gives character probabilities" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="850" y="555" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="decode" value="&lt;b&gt;CTC decoding&lt;/b&gt;&lt;br&gt;Remove blank predictions and repeated symbols&lt;br&gt;Return line text and recognition confidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eff6ff;strokeColor=#60a5fa;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="850" y="695" width="570" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="combine" value="&lt;b&gt;Combine in original line / part order&lt;/b&gt;&lt;br&gt;Text + boxes + scores + model identity + elapsed time&lt;br&gt;Parent parses MCQs and applies routing rules" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ecfdf5;strokeColor=#34d399;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="850" y="835" width="570" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="notes" value="&lt;b&gt;Execution and confidence notes&lt;/b&gt;&lt;br&gt;Each question worker owns both models and handles complete questions.&lt;br&gt;Models are loaded once; recognition batches run within the worker.&lt;br&gt;Confidence is an uncalibrated line score, not a correctness probability.&lt;br&gt;Text-only LLM review cannot recover visual evidence missing from OCR." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1175" width="1100" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="modules" value="&lt;b&gt;Implementation&lt;/b&gt;&lt;br&gt;ocr.py: cached_model(), reading_order(), rectify(), recognize_crops(), HFMobileReader&lt;br&gt;question_workers.py: persistent spawn workers and physical-core allocation&lt;br&gt;profiling.py: optional per-stage wall-time measurements" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8fafc;strokeColor=#94a3b8;strokeWidth=2;fontFamily=Helvetica;fontSize=16;fontColor=#0f172a;spacing=12;" vertex="1" parent="1">
+          <mxGeometry x="200" y="1360" width="1100" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" value="" source="input" target="preprocess" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" value="" source="preprocess" target="det-backbone" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" value="" source="det-backbone" target="neck" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" value="" source="neck" target="head" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-5" value="" source="head" target="polygons" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" value="" source="polygons" target="rectify" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" value="each line batch" source="rectify" target="rec-input" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="750" y="980" />
+              <mxPoint x="750" y="180" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-8" value="" source="rec-input" target="rec-backbone" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-9" value="" source="rec-backbone" target="svtr" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-10" value="" source="svtr" target="classify" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-11" value="" source="classify" target="decode" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-12" value="" source="decode" target="combine" parent="1" edge="1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;endArrow=block;endFill=1;strokeWidth=2;strokeColor=#64748b;fontSize=14;fontFamily=Helvetica;labelBackgroundColor=#ffffff;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

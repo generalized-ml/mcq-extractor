@@ -1,132 +1,216 @@
-# PDF to JSON and MCQs
-## This repo is currenting in work-in-progress mode - 
-![alt text](docs/result/experiments.png)
-For the separate PaddleOCR-VL-1.6 pipeline with confidence-based text-only LLM
-review, see [Paddle pipeline setup and usage](src/pdf_to_json_paddle/README.md).
+# Low-Cost MCQ Extractor
 
-Convert NEET question-paper PDFs into Docling source JSON, heuristic MCQs, and
-MCQs reviewed with OpenRouter vision. The pipeline and evaluator were copied
-from `/Users/raghavsharma/Documents/My/Projects/NEET/codebase` and organized as
-the `pdf_to_jsons` package. The existing local Docling checkout is retained.
+Turn question-paper PDFs into structured MCQ JSON using local OCR and selective
+text-only LLM review. The primary implementation is
+[`src/pdf_to_json_my`](src/pdf_to_json_my): it extracts question text, four
+options, printed answers, explanations, and source references while retaining
+question crops for inspection.
 
-```text
-.
-├── src/pdf_to_jsons/          # Complete conversion pipeline and CLI tools
-│   ├── run_converter.py      # PDF → Docling ConversionResult JSON
-│   ├── extract_mcqs.py       # Source JSON → structured MCQs
-│   ├── pdf_to_mcqs.py        # Conversion, extraction, review, checkpoints
-│   ├── hybrid_mcq/run.py     # OpenRouter vision review
-│   ├── evaluate.py           # Compare predictions with golden questions
-│   └── show_mcq.py           # Inspect a question and its source images
-├── dataset/
-│   ├── pdfs/                # Source PDFs, 2021–2025
-│   ├── golden/              # Reference questions and image assets
-│   └── jsons/               # Existing conversion outputs copied from NEET
-├── docling/                 # Retained local Docling repository
-├── tests/                   # Offline regression tests
-│   └── fixtures/            # Preserved data from the former testing sandbox
-├── docs/                    # Architecture, evaluation, and hybrid review
-├── convert_pdfs_to_jsons.sh  # Batch conversion, all PDFs
-├── pyproject.toml           # Package metadata and command entry points
-└── requirements.txt         # Installs local Docling and this package
+**Work in progress.** Current experiments use NEET papers from 2021–2025.
+Extraction quality, formula recognition, and review routing are still being
+improved. Printed answers are transcribed from the supplied paper or solutions.
+
+## Results
+
+The existing experiment chart is retained below:
+
+![Recorded MCQ extraction experiment results](docs/result/experiments.png)
+
+The recorded comparison in `results/experiment.csv` contains this snapshot:
+
+| Method | Predicted / golden questions | Keyword score | Semantic score | Aggregate score | Recorded LLM cost / PDF |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Native local OCR + selective text review (`pdf_to_json_my`) | 779 / 980 | 0.5071 | 0.7200 | 0.6135 | $0.01851 |
+| Original Docling + vision review (`pdf_to_json`) | 965 / 980 | 0.6877 | 0.8449 | 0.7663 | $0.04179 |
+
+These are historical runs, not a completed comparison of both methods on all
+questions. The native run had 201 missing predictions, including 199 pending
+2023 questions. Cost/PDF averages PDFs with recorded costs: 4 of 5 for the native
+method and 5 of 5 for the original method. There were also 47 and 53 calls,
+respectively, without reported costs. Costs cover recorded LLM API usage;
+local compute is excluded. This snapshot has not been recomputed for this README.
+
+Keyword scoring uses exact matching word prefixes, so an early punctuation,
+Unicode, or LaTeX difference can stop a field's score. Missing questions score
+zero. See [evaluation details](docs/evaluation.md) for scoring and coverage rules.
+
+## Pipeline design
+
+Open the editable **[draw.io pipeline design](docs/low-cost-mcq-extractor.drawio)**
+in diagrams.net or a draw.io editor. It contains two pages: the complete pipeline
+and the local detector/recognizer architecture.
+
+```mermaid
+flowchart TD
+    PDF[Question-paper PDF] --> Crops[Reuse verified crops or run Docling crop stage]
+    Crops --> Queue[Skip completed questions and queue pending work]
+    Queue --> OCR[Parallel local detection and recognition]
+    OCR --> Parse[Parse MCQ and assess confidence / structure]
+    Parse --> Gate{Review required?}
+    Gate -->|No| Local[Keep local extraction]
+    Gate -->|Yes| Review[Text-only LLM review]
+    Local --> Final[Ordered final_mcqs.json + provenance]
+    Review --> Final
+    Final --> Eval[Optional evaluation against golden JSON]
 ```
+
+1. **Prepare question crops.** Reuse an existing Docling crop run, checking the
+   PDF and image hashes, or generate crops using the shared crop engine. The
+   current crop-generation path uses macOS Vision for boundary checks.
+2. **Distribute complete questions.** For `N` physical CPU cores, default to
+   `max(1, N // 2)` persistent workers, capped by pending questions. Each worker
+   uses two PyTorch CPU threads, or one on a single-core machine. A free worker
+   takes the next question; all continuation images stay together.
+3. **Run local OCR.** Each worker loads the pinned native Hugging Face
+   `PP-OCRv5_mobile_det_safetensors` and `PP-OCRv5_mobile_rec_safetensors` models
+   once. Detection locates text lines; recognition processes them in batches of
+   eight, preserving aspect ratios before padding. This path uses PyTorch and
+   Transformers. FP32 is the default.
+4. **Parse and route.** Local rules extract the stem, options, printed answer,
+   and solution. Routing combines line confidence, missing or duplicate options,
+   missing fields, and crop warnings. Default thresholds are a minimum score of
+   `0.85` and at most `0.10` low-confidence lines. Confidence is uncalibrated.
+5. **Review selected text.** Only selected questions go to OpenRouter. Requests
+   contain the full OCR text and draft JSON; the default reviewer is
+   `google/gemini-2.5-flash-lite`. `--ocr-only` defers these requests. Text-only
+   review cannot verify misread pixels, formulas, or diagrams; OCR uncertainty
+   remains flagged.
+6. **Save and resume.** Only the parent writes artifacts and checkpoints. Results
+   remain in source-question order even when workers finish out of order.
+   Completed OCR and successful reviews are reused on resume. Per-question
+   timings, API usage, provenance, and per-PDF runtime sessions are retained.
+
+The cost controls are crop/model reuse, local OCR, bounded runs, and selective
+review. `--limit` bounds new OCR questions; `--max-llm-questions` bounds new
+reviews; `--workers` controls CPU concurrency and model memory use.
 
 ## Setup
 
-From this workspace root, use Python 3.10 or newer:
+Use Python 3.10 or newer from the repository root:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -e '.[my,crop,eval]'
 ```
 
-The local Docling source is preferred when running from this checkout. Docling
-conversion may download model weights on first use. Heuristic extraction and
-hybrid review use Python's standard library; evaluation has separate dependencies.
+The `crop` extra includes macOS-specific Vision support. To process already
+generated crops on another platform, install `.[my,eval]` and pass `--crops-dir`.
+Model weights download on first use and are cached. `--local-files-only` requires
+the native OCR models to be fully cached.
 
-## Convert one PDF
+For selected LLM review, create a root `.env` with your own key:
 
-Generate source JSON and heuristic MCQs, plus an LLM evidence plan, without API calls:
+```dotenv
+OPENROUTER_API_KEY=your-key
+OPENROUTER_MODEL=google/gemini-2.5-flash-lite
+```
+
+The native pipeline loads this file. Local OCR with `--ocr-only` works without
+an API key.
+
+## Extract a PDF
+
+Start with two questions and local OCR only:
 
 ```bash
-python -m pdf_to_jsons dataset/pdfs/2021.pdf outputs/jsons --dry-run
+JSON_CROPS_MY_OUTPUT=outputs/my_first_run \
+  bash json_crops_my.sh dataset/pdfs/2021.pdf --ocr-only --limit 2
 ```
 
-To run vision review, export `OPENROUTER_API_KEY` in your shell, then resume:
+Continue the remaining OCR and review selected questions:
 
 ```bash
-python -m pdf_to_jsons dataset/pdfs/2021.pdf outputs/jsons --resume
+JSON_CROPS_MY_OUTPUT=outputs/my_first_run \
+  bash json_crops_my.sh dataset/pdfs/2021.pdf --resume
 ```
 
-Selected question evidence and embedded images are sent to OpenRouter. Requests
-can incur charges. Default model: `google/gemini-2.5-flash-lite`; change it using
-`OPENROUTER_MODEL` or `--model`. Review normally covers flagged questions and
-incomplete candidates. Use `--review-all` to include every question, or `--limit 5`
-for a small initial run. Uncertain results remain flagged for review.
+To reuse saved crops explicitly:
+
+```bash
+.venv/bin/python -m pdf_to_json_my dataset/pdfs/2021.pdf \
+  --crops-dir outputs/json_crops_fast/2021 \
+  --output outputs/my_crop_run --ocr-only
+```
+
+Choose a fresh output directory when PDF, OCR settings, or checkpointed code
+changes. `--resume` verifies saved inputs and artifacts. The shell script defaults
+to the 2021 PDF and `outputs/json_crops_my`; `JSON_CROPS_MY_OUTPUT` sets the
+experiment folder. See the [native pipeline guide](src/pdf_to_json_my/README.md)
+for concurrency, profiling, local models, and labeling export.
+
+## Output format
+
+Both methods publish the same public JSON filenames:
 
 ```text
-outputs/jsons/2021/
-├── pipeline.json
-├── raw/2021_raw.json
-├── mcqs/2021_mcqs.json
-└── mcq_with_llm/2021_mcqs_with_llm.json
+outputs/<experiment>/<PDF-name>/
+├── mcqs.json                 # Local or heuristic drafts
+├── final_mcqs.json           # Final extraction and review status
+├── pipeline.json             # Identity, crop plan, checkpoints, worker metadata
+├── runtime.json              # Recorded pipeline wall-time sessions
+└── questions/                # Native pipeline's per-question evidence
+    └── <question-key>/
+        ├── patch.png
+        ├── part_01.png
+        ├── paddle_ocr.json    # Native OCR lines, boxes, scores, and timing
+        ├── paddle_ocr.txt
+        └── mcq.json
 ```
 
-`--dry-run` writes an evidence plan in the last folder. `--resume` checks PDF and
-code hashes and reuses completed stages. Existing output is protected from
-overwriting. Copied `dataset/jsons` files retain their original paths and hashes
-as provenance; use `outputs/` for new runs. Those old checkpoints cannot be resumed
-after moving the inputs and code. Inspection of copied outputs may require
-`--raw-json` to point to the relocated raw JSON explicitly.
+Question records preserve source crops, page references, routing reasons, and
+review flags. The original method also retains its raw Docling data and legacy
+intermediate folders. `runtime.json` is available for runs made with timing
+support; historical durations can remain unknown.
 
-## Convert all PDFs
+## Evaluate and plot
 
-The batch script processes every PDF, including 2021. It defaults to
-`dataset/pdfs` and `dataset/jsons`; specify a new output directory to keep the
-copied results intact:
+Provide an experiment folder; golden references default to `dataset/golden`:
 
 ```bash
-./convert_pdfs_to_jsons.sh dataset/pdfs outputs/jsons --dry-run
-./convert_pdfs_to_jsons.sh dataset/pdfs outputs/jsons --resume
+.venv/bin/python -m evaluation outputs/json_crops_my_all
+.venv/bin/python -m evaluation outputs/pdf_to_jsons_all
 ```
 
-Set `DOCLING_PYTHON` to override the Python executable. Otherwise the script
-prefers this workspace's `.venv/bin/python`, then `python3`.
-
-## Individual tools
+Each command discovers available PDFs and appends one row to
+`results/experiment.csv`. An optional second folder selects the golden dataset.
+Use `--no-save` to print results without writing a row:
 
 ```bash
-python -m pdf_to_jsons.run_converter --pdf dataset/pdfs/2021.pdf --output-dir outputs/raw
-python -m pdf_to_jsons.extract_mcqs --help
-python -m pdf_to_jsons.hybrid_mcq.run --help
-python -m pdf_to_jsons.show_mcq outputs/jsons/2021/mcq_with_llm/2021_mcqs_with_llm.json 40
+.venv/bin/python -m evaluation outputs/my_first_run dataset/golden --no-save
+.venv/bin/python -m evaluation outputs/json_crops_my_all --years 2023 --no-save
 ```
 
-After installation, `pdf-to-jsons`, `pdf-to-raw-json`, `extract-mcqs`,
-`review-mcqs`, `evaluate-mcqs`, and `show-mcq` provide the same commands.
-
-## Evaluation and tests
+Reports include quality scores, average recorded cost/PDF, cost coverage,
+available pipeline wall time, and separate evaluation duration. Folder discovery
+includes only available PDFs unless `--years` explicitly requests missing years.
+The first evaluation may download the embedding model; `--local-files-only`
+uses cached weights.
 
 ```bash
-python -m pip install -e '.[eval]'
-python -m pdf_to_jsons.evaluate \
-  --mcq-json dataset/jsons/2021/mcq_with_llm/2021_mcqs_with_llm.json \
-  --golden-json dataset/golden/neet_2021/2021_mcqs.json
-
-PYTHONPATH=src python -m unittest discover -s tests -p 'test_*.py'
+.venv/bin/python -m evaluation.plot_experiments
+# Optional vector export:
+.venv/bin/python -m evaluation.plot_experiments --output results/experiments.svg
 ```
 
-Evaluation writes to `results/pdf_to_jsons`. Offline tests need no model downloads
-or API key. Evaluation also saves the recorded LLM extraction costs in USD and
-token counts in the experiment summary, metadata, and a per-call CSV. Missing
-costs stay unknown; unrecorded failed/retried attempts are excluded.
-See [crop-based OCR and LLM extraction](docs/crop-pipeline.md),
-[architecture](docs/architecture.md), [evaluation](docs/evaluation.md),
-and [hybrid review](docs/hybrid-review.md) for details.
+The chart reads `results/experiment.csv` and defaults to
+`results/experiments.png`. See [evaluation documentation](docs/evaluation.md).
 
-For the PaddleOCR-free mobile pipeline using native Hugging Face weights, see
-[src/pdf_to_json_my/README.md](src/pdf_to_json_my/README.md). Run
-`bash json_crops_my.sh`; install its dependencies with `pip install -e '.[my]'`.
+## Other methods and development
 
-To plot experiment scores and LLM costs, run `PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments`.
+- [Native local OCR pipeline](src/pdf_to_json_my/README.md): primary low-cost path.
+- [Paddle pipeline](src/pdf_to_json_paddle/README.md): Paddle mobile and VL backends.
+- [Original pipeline architecture](docs/architecture.md): Docling conversion,
+  heuristic extraction, and vision review.
+- [Crop engine](docs/crop-pipeline.md) and [hybrid review](docs/hybrid-review.md).
+
+The original method remains available through `python -m pdf_to_jsons` and
+`convert_pdfs_to_jsons.sh`.
+
+```bash
+PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+```
+
+Tests use offline fixtures and mocked external calls. Extraction can still miss
+text, confuse option labels, or alter formulas; inspect uncertain questions
+against their saved images before using the JSON as verified data.
