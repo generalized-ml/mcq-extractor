@@ -36,23 +36,11 @@ zero. See [evaluation details](docs/evaluation.md) for scoring and coverage rule
 
 ## Pipeline design
 
-Open the editable **[draw.io pipeline design](docs/low-cost-mcq-extractor.drawio)**
-in diagrams.net or a draw.io editor. It contains two pages: the complete pipeline
-and the local detector/recognizer architecture.
+[![Low-Cost MCQ Extractor pipeline: local OCR, selective review, and evaluation](docs/low-cost-mcq-extractor.svg)](docs/low-cost-mcq-extractor.drawio)
 
-```mermaid
-flowchart TD
-    PDF[Question-paper PDF] --> Crops[Reuse verified crops or run Docling crop stage]
-    Crops --> Queue[Skip completed questions and queue pending work]
-    Queue --> OCR[Parallel local detection and recognition]
-    OCR --> Parse[Parse MCQ and assess confidence / structure]
-    Parse --> Gate{Review required?}
-    Gate -->|No| Local[Keep local extraction]
-    Gate -->|Yes| Review[Text-only LLM review]
-    Local --> Final[Ordered final_mcqs.json + provenance]
-    Review --> Final
-    Final --> Eval[Optional evaluation against golden JSON]
-```
+The preview and editable [draw.io source](docs/low-cost-mcq-extractor.drawio)
+share the same compact layout. Open the source in diagrams.net or a draw.io
+editor to modify it. The SVG also embeds the editable diagram.
 
 1. **Prepare question crops.** Reuse an existing Docling crop run, checking the
    PDF and image hashes, or generate crops using the shared crop engine. The
