@@ -8,12 +8,14 @@ import hashlib
 import json
 import logging
 import os
+import time
 from pathlib import Path
 
 from .extract_mcqs import extract_mcqs
 from .hybrid_mcq.run import run as run_hybrid
 from .hybrid_mcq.run import save_json
 from .run_converter import run_converter
+from .runtime import RuntimeRecorder
 
 
 def file_hash(path: Path) -> str:
@@ -25,6 +27,7 @@ def file_hash(path: Path) -> str:
 
 
 def run_pipeline(args: argparse.Namespace) -> Path:
+    started = time.perf_counter()
     pdf_path = args.pdf_path.expanduser().resolve()
     if not pdf_path.is_file() or pdf_path.suffix.lower() != ".pdf":
         raise ValueError(f"Expected an existing PDF file: {pdf_path}")
@@ -59,11 +62,15 @@ def run_pipeline(args: argparse.Namespace) -> Path:
         raise ValueError("Pipeline output already exists. Use --resume or a different output folder.")
     save_json(manifest_path, manifest)
 
+    runtime = RuntimeRecorder(root, 'pdf_to_json', started=started, history_complete=not args.resume)
+    runtime.save()
+
     if not manifest.get("raw_sha256"):
         print("Stage 1/3: PDF conversion", flush=True)
         run_converter(pdf_path, raw_path.parent, output_path=raw_path)
         manifest["raw_sha256"] = file_hash(raw_path)
         save_json(manifest_path, manifest)
+        runtime.save()
     else:
         print(f"Stage 1/3: reusing {raw_path}", flush=True)
 
@@ -79,6 +86,7 @@ def run_pipeline(args: argparse.Namespace) -> Path:
         print(f"Found {result['question_count']} MCQs and {len(result['review_candidates'])} incomplete candidates.")
         manifest["mcqs_sha256"] = file_hash(mcqs_path)
         save_json(manifest_path, manifest)
+        runtime.save()
         del raw, result
     else:
         print(f"Stage 2/3: reusing {mcqs_path}", flush=True)
@@ -90,6 +98,7 @@ def run_pipeline(args: argparse.Namespace) -> Path:
         retries=args.retries, timeout=args.timeout, resume=args.resume,
         dry_run=args.dry_run, review_all=args.review_all,
     ))
+    runtime.save(finished=True)
     print(f"Output folder: {root}", flush=True)
     if not args.dry_run:
         final = json.loads(hybrid_path.read_text(encoding="utf-8"))

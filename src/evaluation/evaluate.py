@@ -10,8 +10,11 @@ import fcntl
 import hashlib
 import json
 import math
+import time
 from pathlib import Path
 from typing import Any, Callable
+
+from pdf_to_jsons.runtime import combine_runtimes, recorded_runtime
 
 
 WEIGHTS = {
@@ -24,6 +27,13 @@ GOLDEN_ROOT = Path(__file__).resolve().parents[2] / "dataset" / "golden"
 LABELS = {str(i): i for i in range(1, 5)} | {c: i for i, c in enumerate("ABCD", 1)}
 LLM_CALL_FIELDS = ("source", "response_id", "model", "status", "cost_usd",
                    "prompt_tokens", "completion_tokens", "total_tokens")
+TIMING_DEFAULTS = {
+    'method_wall_seconds': None, 'method_timed_pdfs': None,
+    'method_missing_time_pdfs': None, 'method_unfinished_time_pdfs': None,
+    'method_incomplete_history_pdfs': None,
+    'method_runtime_scope': None, 'evaluation_model_loading_seconds': None,
+    'evaluation_scoring_seconds': None, 'evaluation_wall_seconds': None,
+}
 
 
 def llm_cost_report(payload: Any) -> tuple[list[dict], dict]:
@@ -351,7 +361,7 @@ def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]
         "pdf_to_json_paddle": "{year}/final_mcqs.json",
         "pdf_to_json_my": "{year}/final_mcqs.json",
     }[pipeline]
-    predictions, golden, per_year, cost_reports = [], [], [], []
+    predictions, golden, per_year, cost_reports, runtimes = [], [], [], [], []
     input_hash, golden_hash = hashlib.sha256(), hashlib.sha256()
     found = 0
     for year in years:
@@ -359,6 +369,7 @@ def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]
         if not golden_path.is_file():
             raise ValueError(f"Missing golden JSON for {year}: {golden_path}")
         prediction_path = root / pattern.format(year=year)
+        runtimes.append(recorded_runtime(prediction_path, pipeline))
         source = prediction_path.read_bytes() if prediction_path.is_file() else None
         reference = golden_path.read_bytes()
         input_hash.update(f"{year}:".encode())
@@ -404,6 +415,7 @@ def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]
         values = [report[key] for report in cost_reports if report[key] is not None]
         cost[key] = math.fsum(values) if key == "llm_cost_usd" and values else (
             sum(values) if values else None)
+    cost.update(combine_runtimes(runtimes))
     return predictions, golden, cost, input_hash.hexdigest(), golden_hash.hexdigest(), per_year
 
 
@@ -427,9 +439,20 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
         number = experiment_number if experiment_number is not None else max(used, default=0) + 1
         if number in used:
             raise ValueError(f"Experiment {number} already exists; choose a new number")
-        record = {"experiment_number": number, **metadata, **summary}
+        record = {"experiment_number": number, **metadata,
+                  **{key: value for key, value in summary.items() if key not in TIMING_DEFAULTS},
+                  **{key: summary.get(key, default) for key, default in TIMING_DEFAULTS.items()}}
         if header is not None and header != list(record):
-            raise ValueError("Existing experiment.csv has a different schema; use another output directory")
+            # Upgrade only additive timing columns; historical runtimes stay blank.
+            old_fields = [key for key in record if key not in TIMING_DEFAULTS]
+            if header != old_fields:
+                raise ValueError("Existing experiment.csv has a different schema; use another output directory")
+            stream.seek(0)
+            stream.truncate()
+            upgrade = csv.DictWriter(stream, fieldnames=list(record))
+            upgrade.writeheader()
+            upgrade.writerows(existing)
+            header = list(record)
         stream.seek(0, 2)
         writer = csv.DictWriter(stream, fieldnames=list(record))
         if header is None:
@@ -439,6 +462,7 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
 
 
 def main() -> None:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument("--mcq-json", type=Path, help="Evaluate one JSON file")
@@ -479,6 +503,7 @@ def main() -> None:
             predictions = load_questions(prediction_path)
             golden = load_questions(golden_path, strict=True)
             llm_calls, cost_summary = llm_cost_report(json.loads(prediction_path.read_text(encoding="utf-8")))
+            cost_summary.update(recorded_runtime(prediction_path, pipeline))
             prediction_hash = hashlib.sha256(prediction_path.read_bytes()).hexdigest()
             reference_hash = hashlib.sha256(golden_path.read_bytes()).hexdigest()
         if not golden:
@@ -491,10 +516,16 @@ def main() -> None:
             "golden_sha256": reference_hash,
             "model": args.model, "model_revision": args.model_revision or "default",
         }
+        model_started = time.perf_counter()
         encoder = SentenceEncoder(args.model, args.batch_size, args.local_files_only,
                                   args.device, args.model_revision)
+        loading_seconds = time.perf_counter() - model_started
+        scoring_started = time.perf_counter()
         rows, summary = evaluate(predictions, golden, encoder)
         summary.update(cost_summary)
+        summary.update(evaluation_model_loading_seconds=loading_seconds,
+                       evaluation_scoring_seconds=time.perf_counter() - scoring_started,
+                       evaluation_wall_seconds=time.perf_counter() - started)
         number, details = save_results(args.output_dir.expanduser().resolve(), rows, summary,
                                        metadata, args.experiment_number, llm_calls=llm_calls)
     except (OSError, ValueError, RuntimeError, ImportError) as exc:
@@ -506,6 +537,12 @@ def main() -> None:
     cost = summary["llm_cost_usd"]
     print(f"Recorded LLM cost (USD): {cost:.8f}" if cost is not None else "Recorded LLM cost (USD): unknown")
     print(f"Calls with reported cost: {summary['llm_priced_calls']}/{summary['llm_recorded_calls']}")
+    method_seconds = summary['method_wall_seconds']
+    print(f'Method wall time: {method_seconds:.3f}s' if method_seconds is not None else 'Method wall time: unknown')
+    print(f"PDFs with recorded time: {summary['method_timed_pdfs']}; "
+          f"missing: {summary['method_missing_time_pdfs']}; unfinished timing: {summary['method_unfinished_time_pdfs']}")
+    print(f"PDFs with unrecorded earlier work: {summary['method_incomplete_history_pdfs']}")
+    print(f"Evaluation wall time: {summary['evaluation_wall_seconds']:.3f}s")
     print(f"Experiment scores: {details}")
     if summary["solution_golden_empty_count"]:
         print(f"Note: {summary['solution_golden_empty_count']} golden answers are empty; "

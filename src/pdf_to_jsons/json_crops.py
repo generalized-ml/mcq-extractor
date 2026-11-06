@@ -176,6 +176,8 @@ def run_llm(root: Path, args) -> Path:
 
 
 def main() -> None:
+    from .runtime import RuntimeRecorder
+    started = time.perf_counter()
     from dotenv import load_dotenv
     load_dotenv(Path.cwd() / ".env", override=False)
     parser = build_parser()
@@ -194,9 +196,13 @@ def main() -> None:
         parser.error("Set OPENROUTER_API_KEY in your environment or ignored .env file, or use --detect-only")
     try:
         root = run_crops(args)
+        runtime = RuntimeRecorder(root, 'pdf_to_json', started=started, history_complete=not args.resume)
+        runtime.save()
         if args.detect_only:
+            runtime.save(finished=True)
             return
         final = run_llm(root, args)
+        runtime.save(finished=True)
         print(f"Final JSON: {final}")
         if args.golden_json:
             subprocess.run([sys.executable, "-m", "evaluation", "--mcq-json", str(final),

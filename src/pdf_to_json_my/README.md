@@ -45,6 +45,46 @@ ratio before padding. `--device auto` selects CUDA or CPU. Explicit `--device mp
 is experimental and fails clearly if unavailable. There is no autoregressive VL
 model, orientation classifier, unwarping, or document layout model here.
 
+## Parallel questions across a PDF
+
+CPU OCR automatically detects the number of **physical** CPU cores, `N`, and
+starts `max(1, N // 2)` persistent question workers. Each uses two PyTorch CPU
+threads (one on a single-core machine) and loads the detector/recognizer once.
+On an eight-core CPU this gives four concurrent questions; on a sixteen-core
+CPU it gives eight. The number of workers is capped at the number of pending
+questions after applying `--limit` and excluding completed checkpoints.
+
+For `X` pending questions and `P` workers, each handles approximately
+`ceil(X / P)` questions. A shared task queue assigns complete questions to free
+workers instead of waiting for a fixed group to finish. All continuation crops
+for one question stay together and retain their original order. Recognition
+inside each worker retains batches of eight; there is no nested process pool.
+The two CPU threads execute a question's model operations; individual threads
+are not pinned to dedicated physical cores.
+
+```bash
+# Use a fresh output directory when migrating from the earlier code version.
+JSON_CROPS_MY_OUTPUT=outputs/json_crops_my_parallel \
+  bash json_crops_my.sh --ocr-only
+
+# Limit memory use or run serially.
+bash json_crops_my.sh --workers 2 --ocr-only
+bash json_crops_my.sh --workers 1 --ocr-only
+```
+
+`--physical-cores N` overrides unavailable core detection. GPU inference uses
+one worker; multiple question workers require CPU. Models are resolved/downloaded
+once in the parent before starting workers, which then load local weights only.
+Each worker has its own models and inference memory; reduce `--workers` if needed.
+
+Only the parent writes OCR artifacts and checkpoints as questions complete.
+MCQ output and LLM review retain plan order even if OCR finishes out of order.
+On resume, completed questions are skipped; worker settings can change without
+invalidating results. `pipeline.json` records the allocation, and each question
+records its worker PID, OCR time, and model initialization time. All OCR workers
+exit before selective LLM review and evaluation begin. The Docling crop stage
+and remote review retain their existing scheduling.
+
 ## Timing each OCR stage
 
 Profile a saved question crop with cached models:
