@@ -38,40 +38,6 @@ zero. See [evaluation details](docs/evaluation.md) for scoring and coverage rule
 
 [![Low-Cost MCQ Extractor pipeline: local OCR, selective review, and evaluation](docs/low-cost-mcq-extractor.svg)](docs/low-cost-mcq-extractor.drawio)
 
-The preview and editable [draw.io source](docs/low-cost-mcq-extractor.drawio)
-share the same compact layout. Open the source in diagrams.net or a draw.io
-editor to modify it. The SVG also embeds the editable diagram.
-
-1. **Prepare question crops.** Reuse an existing Docling crop run, checking the
-   PDF and image hashes, or generate crops using the shared crop engine. The
-   current crop-generation path uses macOS Vision for boundary checks.
-2. **Distribute complete questions.** For `N` physical CPU cores, default to
-   `max(1, N // 2)` persistent workers, capped by pending questions. Each worker
-   uses two PyTorch CPU threads, or one on a single-core machine. A free worker
-   takes the next question; all continuation images stay together.
-3. **Run local OCR.** Each worker loads the pinned native Hugging Face
-   `PP-OCRv5_mobile_det_safetensors` and `PP-OCRv5_mobile_rec_safetensors` models
-   once. Detection locates text lines; recognition processes them in batches of
-   eight, preserving aspect ratios before padding. This path uses PyTorch and
-   Transformers. FP32 is the default.
-4. **Parse and route.** Local rules extract the stem, options, printed answer,
-   and solution. Routing combines line confidence, missing or duplicate options,
-   missing fields, and crop warnings. Default thresholds are a minimum score of
-   `0.85` and at most `0.10` low-confidence lines. Confidence is uncalibrated.
-5. **Review selected text.** Only selected questions go to OpenRouter. Requests
-   contain the full OCR text and draft JSON; the default reviewer is
-   `google/gemini-2.5-flash-lite`. `--ocr-only` defers these requests. Text-only
-   review cannot verify misread pixels, formulas, or diagrams; OCR uncertainty
-   remains flagged.
-6. **Save and resume.** Only the parent writes artifacts and checkpoints. Results
-   remain in source-question order even when workers finish out of order.
-   Completed OCR and successful reviews are reused on resume. Per-question
-   timings, API usage, provenance, and per-PDF runtime sessions are retained.
-
-The cost controls are crop/model reuse, local OCR, bounded runs, and selective
-review. `--limit` bounds new OCR questions; `--max-llm-questions` bounds new
-reviews; `--workers` controls CPU concurrency and model memory use.
-
 ## Setup
 
 Use Python 3.10 or newer from the repository root:
