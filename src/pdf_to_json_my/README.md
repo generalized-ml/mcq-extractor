@@ -45,6 +45,54 @@ ratio before padding. `--device auto` selects CUDA or CPU. Explicit `--device mp
 is experimental and fails clearly if unavailable. There is no autoregressive VL
 model, orientation classifier, unwarping, or document layout model here.
 
+## Timing each OCR stage
+
+Profile a saved question crop with cached models:
+
+```bash
+.venv/bin/python -m pdf_to_json_my.profiling \
+  outputs/json_crops_my_all/2021/questions/0002_q3/patch.png --precision float32
+```
+
+Use `--precision float16` for the local copies created by `model_quantization`.
+Each command measures model initialization separately, then a first and warm
+OCR pass. Reports default to `outputs/ocr_timing/stages_<precision>.json`;
+`--output` selects another path. `--device` and `--batch-size` select execution
+settings. Only cached/local models are loaded.
+
+Timings include preprocessing, detector backbone/feature fusion/head, polygon
+extraction, line cropping, recognizer backbone/SVTR encoder/classifier, and CTC
+decoding. Recognition times sum all line batches. The SVTR encoder includes
+convolutions around its attention blocks. Other model operations include pooling,
+softmax, and framework overhead. Stage rows exclude nested totals to avoid double
+counting. GPU work is synchronized; profiling adds overhead, so compare profiled
+runs with each other. Normal `reader.read(path)` does not attach profiling hooks;
+`reader.read(path, profile=True)` adds a `timings` field to its result.
+
+## Benchmarking parallel recognition
+
+Compare one process using four PyTorch threads with two persistent recognition
+workers using two threads each, keeping FP32 and batches of eight:
+
+```bash
+.venv/bin/python -m pdf_to_json_my.parallel_benchmark \
+  outputs/json_crops_my_all/2021/questions/0002_q3/patch.png
+```
+
+The detector runs in the parent process. Recognition batches run in workers
+started with `spawn`; each loads its recognizer once. Image arrays are passed
+between processes and results are restored in batch/reading order. No LLM calls
+or pipeline checkpoint changes are made. All models must already be cached.
+
+The report at `outputs/ocr_timing/multiprocessing.json` includes initialization,
+three passes for each configuration (first plus two warm repeats), warm median
+speedup, and exact text/box comparisons against serial output. Recognition wall
+time includes dispatch, data transfer, and waiting for workers. Worker CPU times
+overlap and must not be added to wall time. Use `--workers`,
+`--threads-per-worker`, `--serial-threads`, `--batch-size`, `--runs`, or `--output`
+to vary the experiment. This is a benchmark; the standard pipeline continues to
+use its existing reader.
+
 ## Extraction and review
 
 Full text, line polygons, scores and timings are stored in each question's

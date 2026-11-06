@@ -15,10 +15,11 @@ import sys
 from pdf_to_jsons.hybrid_mcq.run import save_json
 from pdf_to_jsons.pdf_to_mcqs import file_hash
 from .crops import inside, prepare_crops
-from .ocr import HFMobileReader, DET_MODEL, REC_MODEL, DET_REVISION, REC_REVISION
+from .ocr import DET_MODEL, REC_MODEL, DET_REVISION, REC_REVISION
 from .confidence import scope_confidence
 from .review import review_question
 from .structure import parse_mcq, route_question
+from .question_workers import execution_settings, transcribe_questions
 
 WORKSPACE = Path(__file__).resolve().parents[2]
 
@@ -127,27 +128,29 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
         save_json(path, state)
 
     checkpoint()
-    reader, processed = None, 0
-    for item in plan:
-        key = item["key"]
-        if key in results:
-            continue
-        if args.limit is not None and processed >= args.limit:
-            break
-        if reader is None:
-            factory = reader_factory or HFMobileReader
-            print(f"Loading HF mobile OCR ({args.device})", flush=True)
-            reader = factory(det_model=args.det_model, rec_model=args.rec_model,
-                             det_revision=args.det_revision, rec_revision=args.rec_revision,
-                             device=args.device, batch_size=args.batch_size,
-                             local_files_only=args.local_files_only)
-            state["models"] = getattr(reader, "model_info", {})
-            save_json(path, state)
+    pending = [item for item in plan if item['key'] not in results]
+    if args.limit is not None:
+        pending = pending[:args.limit]
+    settings = execution_settings(args, len(pending))
+    state['ocr_execution'] = settings
+    save_json(path, state)
+    if pending:
+        print(f"HF mobile OCR: {settings['physical_cores']} physical cores; "
+              f"{settings['workers']} workers x {settings['threads_per_worker']} CPU threads; "
+              f"{len(pending)} questions (~{settings['questions_per_worker_ceiling']} per worker); "
+              f"device={settings['device']}", flush=True)
+    options = dict(det_model=args.det_model, rec_model=args.rec_model,
+                   det_revision=args.det_revision, rec_revision=args.rec_revision,
+                   device=settings['device'], batch_size=args.batch_size,
+                   local_files_only=args.local_files_only)
+    items_by_key = {item['key']: item for item in pending}
+    for completed in transcribe_questions(pending, root, options, settings, reader_factory=reader_factory):
+        key = completed['key']
+        item = items_by_key[key]
+        state['models'] = completed['models']
         print(f"Paddle OCR: question {item['question_number']} ({len(item['parts'])} crop parts)", flush=True)
         folder = root / "questions" / key
-        transcripts = []
-        for part in item["parts"]:
-            transcripts.append(reader.read(inside(root, part)))
+        transcripts = completed['transcripts']
         confidence_parts = scope_confidence(transcripts)
         source_text = "\n\n".join(part["text"] for part in transcripts)
         draft = parse_mcq(source_text, item["question_number"], require_answer=not args.allow_missing_answer)
@@ -168,13 +171,14 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
                                      max_low_token_fraction=args.max_low_token_fraction,
                                      crop_warnings=item["crop_warnings"])
         results[key] = {"draft": draft, "text": source_text, "artifacts": artifacts,
-                        "ocr_uncertain": ocr_routing["review_required"]}
+                        "ocr_uncertain": ocr_routing["review_required"],
+                        "ocr_execution": completed['execution']}
         checkpoint()
-        processed += 1
-        print(f"  score={routing['score']}; LLM review={routing['review_required']}", flush=True)
-    # Release OCR weights before remote review/evaluation on memory-limited hosts.
-    del reader
-    selected = [(key, record) for key, record in results.items()
+        print(f"  OCR={completed['execution']['seconds']:.3f}s; "
+              f"score={routing['score']}; LLM review={routing['review_required']}", flush=True)
+    # Worker processes and their OCR models have exited before review/evaluation.
+    ordered_results = ((item['key'], results[item['key']]) for item in plan if item['key'] in results)
+    selected = [(key, record) for key, record in ordered_results
                 if record["draft"]["routing"]["review_required"]
                 and record.get("review", {}).get("status") != "success"]
     if selected and not args.ocr_only:
@@ -227,6 +231,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rec-revision", default=REC_REVISION)
     parser.add_argument("--device", choices=("auto", "cpu", "cuda", "mps"), default="auto")
     parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--workers", type=int, help="CPU question workers (default: physical cores // 2); 1 runs serially")
+    parser.add_argument("--physical-cores", type=int, help="Override physical core detection when unavailable")
     parser.add_argument("--local-files-only", action="store_true")
     parser.add_argument("--confidence-threshold", type=float, default=.85)
     parser.add_argument("--max-low-token-fraction", type=float, default=.10)
@@ -248,6 +254,8 @@ def main():
     args = parser.parse_args()
     if args.batch_size < 1 or args.retries < 0 or not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("Invalid batch size, timeout, or retries")
+    if any(value is not None and value < 1 for value in (args.workers, args.physical_cores)):
+        parser.error("Workers and physical core count must be positive")
     if any(value is not None and value < 0 for value in (args.limit, args.max_llm_questions)):
         parser.error("Question limits must be nonnegative")
     if any(not math.isfinite(value) or not 0 <= value <= 1 for value in (args.confidence_threshold, args.max_low_token_fraction)):
