@@ -361,24 +361,61 @@ def find_golden_json(prediction_path: Path) -> Path:
     raise ValueError("Could not infer the golden JSON; pass --golden-json explicitly")
 
 
-def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]):
+def prediction_files(root: Path) -> dict[str, Path]:
+    """Discover public final outputs, with a fallback for original legacy runs."""
+    if not root.is_dir():
+        raise ValueError(f'Expected an experiment folder: {root}')
+    def final_in(folder):
+        canonical = folder / 'final_mcqs.json'
+        legacy = folder / 'mcq_with_llm' / f'{folder.name}_mcqs_with_llm.json'
+        return canonical if canonical.is_file() else legacy if legacy.is_file() else None
+    def paper_id(folder, path):
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        source = payload.get('source_pdf') if isinstance(payload, dict) else None
+        return Path(source).stem if isinstance(source, str) and source else folder.name
+
+    single = final_in(root)
+    if single:
+        return {paper_id(root, single): single}
+    files = {}
+    for folder in sorted(root.iterdir()):
+        if not folder.is_dir() or not (found := final_in(folder)):
+            continue
+        paper = paper_id(folder, found)
+        if paper in files:
+            raise ValueError(f'Multiple outputs found for PDF {paper}: {files[paper]} and {found}')
+        files[paper] = found
+    return files
+
+
+def golden_file(root: Path, paper: str) -> Path:
+    candidates = [root / f'neet_{paper}' / f'{paper}_mcqs.json',
+                  root / paper / 'final_mcqs.json', root / paper / f'{paper}_mcqs.json',
+                  root / f'{paper}_mcqs.json', root / f'{paper}.json']
+    if root.name in (paper, f'neet_{paper}'):
+        candidates.append(root / 'final_mcqs.json')
+    for path in candidates:
+        if path.is_file():
+            return path
+    raise ValueError(f'Missing golden JSON for {paper} in {root}')
+
+
+def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int] | None = None):
     """Combine years while keeping identical question numbers distinct."""
-    if len(years) != len(set(years)) or not years:
+    files = prediction_files(root)
+    papers = [str(year) for year in years] if years is not None else list(files)
+    if not papers and years is None:
+        raise ValueError(f'No final_mcqs.json outputs found in {root}')
+    if len(papers) != len(set(papers)) or not papers:
         raise ValueError("Years must be unique and nonempty")
-    pattern = {
-        "pdf_to_json": "{year}/mcq_with_llm/{year}_mcqs_with_llm.json",
-        "pdf_to_json_paddle": "{year}/final_mcqs.json",
-        "pdf_to_json_my": "{year}/final_mcqs.json",
-    }[pipeline]
     predictions, golden, per_year, cost_reports, runtimes = [], [], [], [], []
     input_hash, golden_hash = hashlib.sha256(), hashlib.sha256()
     found = 0
-    for year in years:
-        golden_path = golden_root / f"neet_{year}" / f"{year}_mcqs.json"
-        if not golden_path.is_file():
-            raise ValueError(f"Missing golden JSON for {year}: {golden_path}")
-        prediction_path = root / pattern.format(year=year)
-        runtimes.append(recorded_runtime(prediction_path, pipeline))
+    for paper in papers:
+        year = int(paper) if paper.isdecimal() else paper
+        golden_path = golden_file(golden_root, paper)
+        prediction_path = files.get(paper, root / paper / 'final_mcqs.json')
+        runtimes.append(recorded_runtime(prediction_path, None))
         source = prediction_path.read_bytes() if prediction_path.is_file() else None
         reference = golden_path.read_bytes()
         input_hash.update(f"{year}:".encode())
@@ -425,7 +462,7 @@ def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]
         cost[key] = math.fsum(values) if key == "llm_cost_usd" and values else (
             sum(values) if values else None)
     cost.update(combine_runtimes(runtimes))
-    cost.update(cost_per_pdf_report(cost_reports, len(years)))
+    cost.update(cost_per_pdf_report(cost_reports, len(papers)))
     return predictions, golden, cost, input_hash.hexdigest(), golden_hash.hexdigest(), per_year
 
 
@@ -482,15 +519,16 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
 def main() -> None:
     started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
-    inputs = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument('folder', nargs='?', type=Path, help='Experiment folder or one PDF output folder')
+    parser.add_argument('golden_folder', nargs='?', type=Path, help='Golden dataset folder (default: dataset/golden)')
+    inputs = parser.add_mutually_exclusive_group()
     inputs.add_argument("--mcq-json", type=Path, help="Evaluate one JSON file")
     inputs.add_argument("--mcq-root", type=Path, help="Evaluate all requested years as one experiment")
     parser.add_argument("--golden-json", type=Path,
                         help="Defaults to dataset/golden/neet_<year>/<year>_mcqs.json inferred from --mcq-json")
-    parser.add_argument("--golden-root", type=Path, default=GOLDEN_ROOT)
-    parser.add_argument("--years", type=int, nargs="+", default=[2021, 2022, 2023, 2024, 2025])
-    parser.add_argument("--experiment-name", choices=("pdf_to_json", "pdf_to_json_paddle", "pdf_to_json_my"),
-                        help="Pipeline label; inferred from input path if omitted")
+    parser.add_argument("--golden-root", type=Path)
+    parser.add_argument("--years", type=int, nargs="+", help='Optional explicit years, including missing outputs; default: discovered PDFs')
+    parser.add_argument("--experiment-name", help="Experiment label; defaults to folder name for folder input")
     parser.add_argument("--experiment-number", type=int, help="Defaults to the next unused experiment number")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--model", default=DEFAULT_MODEL, help="SentenceTransformer model ID or local directory")
@@ -499,18 +537,26 @@ def main() -> None:
     parser.add_argument("--device", help="Embedding device, e.g. cpu, mps, or cuda")
     parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
+    if not (args.folder or args.mcq_root or args.mcq_json):
+        parser.error('Provide an experiment folder, --mcq-root, or --mcq-json')
+    if args.folder and (args.mcq_root or args.mcq_json):
+        parser.error('Use a positional folder or --mcq-root/--mcq-json, not both')
+    if args.golden_folder and (args.golden_root or args.golden_json):
+        parser.error('Provide the golden dataset either positionally or with a golden flag')
+    if args.golden_folder and not args.folder:
+        parser.error('A positional golden folder requires a positional experiment folder')
     if args.batch_size < 1 or (args.experiment_number is not None and args.experiment_number < 1):
         parser.error("Batch size and experiment number must be positive")
-    if args.mcq_root and args.golden_json:
+    if (args.folder or args.mcq_root) and args.golden_json:
         parser.error("Use --golden-root with --mcq-root")
     try:
-        prediction_path = (args.mcq_root or args.mcq_json).expanduser().resolve()
-        if args.mcq_root:
-            pipeline = args.experiment_name or experiment_name(prediction_path)
-            golden_path = args.golden_root.expanduser().resolve()
+        prediction_path = (args.folder or args.mcq_root or args.mcq_json).expanduser().resolve()
+        if args.folder or args.mcq_root:
+            pipeline = args.experiment_name or prediction_path.name
+            golden_path = (args.golden_folder or args.golden_root or GOLDEN_ROOT).expanduser().resolve()
             predictions, golden, cost_summary, prediction_hash, reference_hash, per_year = load_combined(
                 prediction_path, pipeline, golden_path, args.years)
-            print("Combined years: " + ", ".join(
+            print("PDF coverage: " + ", ".join(
                 f"{year}={actual}/{expected}" + (" (missing output)" if not present else "")
                 for year, actual, expected, present in per_year))
             llm_calls = None

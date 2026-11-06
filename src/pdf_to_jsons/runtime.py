@@ -29,14 +29,14 @@ class RuntimeRecorder:
         save_json(self.path, self.data)
 
 
-def recorded_runtime(prediction_path: Path, method: str) -> dict:
+def recorded_runtime(prediction_path: Path, method: str | None) -> dict:
     """Read a PDF's sidecar; question CPU times cannot substitute for wall time."""
     for root in (prediction_path.parent, prediction_path.parent.parent):
         path = root / 'runtime.json'
         if not path.is_file():
             continue
         data = json.loads(path.read_text())
-        if data.get('method') != method:
+        if method is not None and data.get('method') != method:
             continue
         sessions = data.get('sessions')
         if not isinstance(sessions, list) or not sessions:

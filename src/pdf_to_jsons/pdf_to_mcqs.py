@@ -91,6 +91,8 @@ def run_pipeline(args: argparse.Namespace) -> Path:
     else:
         print(f"Stage 2/3: reusing {mcqs_path}", flush=True)
 
+    save_json(root / 'mcqs.json', json.loads(mcqs_path.read_text(encoding='utf-8')))
+
     print("Stage 3/3: OpenRouter vision extraction", flush=True)
     run_hybrid(argparse.Namespace(
         raw_json=raw_path, mcq_json=mcqs_path, output=hybrid_path,
@@ -102,6 +104,7 @@ def run_pipeline(args: argparse.Namespace) -> Path:
     print(f"Output folder: {root}", flush=True)
     if not args.dry_run:
         final = json.loads(hybrid_path.read_text(encoding="utf-8"))
+        save_json(root / 'final_mcqs.json', final)
         results = final["hybrid"]["results"]
         failed = sum(item["status"] == "error" for item in results.values())
         pending = final["hybrid"]["selected_count"] - len(results)

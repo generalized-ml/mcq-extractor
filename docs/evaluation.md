@@ -13,6 +13,43 @@ python -m evaluation \
   --golden-json dataset/golden/neet_2021/2021_mcqs.json
 ```
 
+The recommended folder-based commands are:
+
+```bash
+.venv/bin/python -m evaluation outputs/json_crops_my_all
+.venv/bin/python -m evaluation outputs/pdf_to_jsons_all
+
+# Optional custom golden dataset folder:
+.venv/bin/python -m evaluation outputs/my_experiment dataset/golden
+```
+
+Every method now publishes the same public files:
+
+```text
+outputs/<experiment>/<PDF-name>/
+  mcqs.json
+  final_mcqs.json
+  pipeline.json
+  runtime.json          # present when runtime was recorded
+```
+
+Internal raw data, question images, and older original-method paths are retained.
+Existing `pdf_to_jsons_all` outputs also have the standard filenames. Future
+original-method runs update `final_mcqs.json` at each review checkpoint.
+
+Evaluation discovers PDFs from `final_mcqs.json`, with a fallback to the original
+`mcq_with_llm/<PDF-name>_mcqs_with_llm.json`. It does not choose paths based on the
+experiment label. A single PDF output folder can also be passed directly. PDF
+names come from `source_pdf` when recorded, otherwise from their folder names.
+The default experiment label is the input folder name; arbitrary labels are
+accepted with `--experiment-name`. One command appends one experiment row.
+
+Golden references can use `neet_<PDF>/<PDF>_mcqs.json`,
+`<PDF>/final_mcqs.json`, `<PDF>/<PDF>_mcqs.json`, or flat `<PDF>_mcqs.json` /
+`<PDF>.json`. A matching golden reference is required for every discovered PDF.
+The default golden folder remains `dataset/golden`. Existing `--mcq-root`,
+`--mcq-json`, `--golden-root`, and `--golden-json` commands remain supported.
+
 Use `.venv/bin/python` instead of `python` to select the project's existing
 environment. The first evaluation downloads `sentence-transformers/all-MiniLM-L6-v2`;
 subsequent runs reuse the local model cache. `--local-files-only` prevents downloads.
@@ -195,8 +232,8 @@ download; actual evaluation always uses sentence embeddings.
 ## Shared experiments
 
 The implementation lives in `src/evaluation`. All pipelines append to the same
-`results/experiment.csv` by default. `experiment_name` identifies `pdf_to_json`,
-`pdf_to_json_paddle`, or `pdf_to_json_my`; `experiment_number` uniquely identifies
+`results/experiment.csv` by default. `experiment_name` identifies the input folder
+or the supplied custom label; `experiment_number` uniquely identifies
 each run across pipelines. Input paths and hashes distinguish papers and outputs.
 Specify the label explicitly when evaluating a renamed input:
 
@@ -230,10 +267,11 @@ costs are marked with an asterisk. Use `--output path.svg` for a vector chart.
 
 ## One row for all years
 
-Use `--mcq-root` to combine 2021–2025 into one experiment row. Question IDs are
-scoped by year before matching, so the same question number in two papers cannot
-collide. A missing yearly prediction file contributes zero predictions for that
-paper and lowers the aggregate scores; the CLI prints coverage for each year.
+Use a positional experiment folder or `--mcq-root` to combine discovered PDFs into one experiment row. Question IDs are
+scoped by PDF name before matching, so the same question number in two papers cannot
+collide. By default only discovered PDFs are evaluated. With explicit
+`--years 2021 2022 2023 2024 2025`, missing yearly output contributes zero predictions
+and lowers aggregate scores; the CLI prints coverage for each PDF.
 Recorded LLM costs are averaged across PDFs with reported costs; token totals
 are summed across the available outputs. Missing PDF costs have a separate count.
 

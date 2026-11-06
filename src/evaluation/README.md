@@ -2,6 +2,19 @@
 
 Run `PYTHONPATH=src .venv/bin/python -m evaluation --help`.
 
+```bash
+.venv/bin/python -m evaluation outputs/json_crops_my_all
+.venv/bin/python -m evaluation outputs/pdf_to_jsons_all dataset/golden
+```
+
+Provide any experiment folder, optionally followed by a golden dataset folder
+(default `dataset/golden`). Available PDF outputs are discovered automatically;
+each command appends one row. Both pipelines publish `<PDF>/final_mcqs.json`
+and `<PDF>/mcqs.json`. One PDF output folder also works. Legacy original-method
+paths remain readable. The default experiment label is the input folder name;
+`--experiment-name` can override it. Explicit `--years` includes missing years
+in the comparison; otherwise only discovered PDFs are evaluated.
+
 See [evaluation documentation](../../docs/evaluation.md) for commands and scoring.
 Results append to `results/experiment.csv`, with a pipeline label and unique run number.
 Each method's recorded PDF wall time and evaluation duration are saved in separate
