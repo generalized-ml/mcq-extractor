@@ -13,6 +13,50 @@ python -m evaluation \
   --golden-json dataset/golden/neet_2021/2021_mcqs.json
 ```
 
+The recommended folder-based commands are:
+
+```bash
+.venv/bin/python -m evaluation outputs/json_crops_my_all
+.venv/bin/python -m evaluation outputs/pdf_to_jsons_all
+
+# Optional custom golden dataset folder:
+.venv/bin/python -m evaluation outputs/my_experiment dataset/golden
+
+# Print results without adding a CSV row:
+.venv/bin/python -m evaluation outputs/my_experiment --no-save
+```
+
+Every method now publishes the same public files:
+
+```text
+outputs/<experiment>/<PDF-name>/
+  mcqs.json
+  final_mcqs.json
+  pipeline.json
+  runtime.json          # present when runtime was recorded
+```
+
+Internal raw data, question images, and older original-method paths are retained.
+Existing `pdf_to_jsons_all` outputs also have the standard filenames. Future
+original-method runs update `final_mcqs.json` at each review checkpoint.
+
+Evaluation discovers PDFs from `final_mcqs.json`, with a fallback to the original
+`mcq_with_llm/<PDF-name>_mcqs_with_llm.json`. It does not choose paths based on the
+experiment label. A single PDF output folder can also be passed directly. PDF
+names come from `source_pdf` when recorded, otherwise from their folder names.
+The default experiment label is the input folder name; arbitrary labels are
+accepted with `--experiment-name`. One command appends one experiment row.
+Use `--no-save` to print scores, cost/PDF, coverage, and runtimes without creating
+or modifying `experiment.csv` or its output directory. It runs the same scoring
+and model loading as a saved evaluation. This flag also works with `--mcq-root`
+and `--mcq-json`; no experiment number is allocated in print-only mode.
+
+Golden references can use `neet_<PDF>/<PDF>_mcqs.json`,
+`<PDF>/final_mcqs.json`, `<PDF>/<PDF>_mcqs.json`, or flat `<PDF>_mcqs.json` /
+`<PDF>.json`. A matching golden reference is required for every discovered PDF.
+The default golden folder remains `dataset/golden`. Existing `--mcq-root`,
+`--mcq-json`, `--golden-root`, and `--golden-json` commands remain supported.
+
 Use `.venv/bin/python` instead of `python` to select the project's existing
 environment. The first evaluation downloads `sentence-transformers/all-MiniLM-L6-v2`;
 subsequent runs reuse the local model cache. `--local-files-only` prevents downloads.
@@ -98,13 +142,59 @@ Per-question CSVs, metadata JSONs, and per-call CSVs are no longer generated.
 Existing older reports are left untouched. Detailed LLM calls remain in the input
 pipeline JSON.
 
+## Runtime per method
+
+Each experiment row also records the extraction method's elapsed time:
+
+- `method_wall_seconds`: recorded PDF pipeline wall time, in seconds. For
+  `--mcq-root`, this is the sum of available per-PDF durations, not the wall time
+  of a job that might have processed several PDFs concurrently.
+- `method_timed_pdfs` / `method_missing_time_pdfs`: timing coverage across PDFs.
+- `method_unfinished_time_pdfs`: PDFs with an interrupted/unfinalized timing
+  session; their recorded duration is a subtotal through the last checkpoint.
+- `method_incomplete_history_pdfs`: PDFs first timed while resuming older output,
+  where work before timing was added cannot be reconstructed.
+- `method_runtime_scope`: identifies what was measured.
+- `evaluation_model_loading_seconds`, `evaluation_scoring_seconds`, and
+  `evaluation_wall_seconds`: evaluation durations, kept separate from extraction.
+  Scoring includes embedding generation. Evaluation wall time includes input
+  loading and model loading, ending before writing the CSV.
+
+The original, Paddle, native HF, and crop/vision entry points save `runtime.json`
+beside each PDF's `pipeline.json` or final JSON. Elapsed time covers preparation,
+model loading, OCR/extraction, review, and checkpoint work performed during each
+invocation. Reused crop/conversion work is excluded. The timer stops before any
+automatic evaluation. Repeated checkpoint snapshots update the same session;
+resume creates another session. Durations add active invocation time without
+including idle time between commands. Parallel OCR measures elapsed wall time,
+so concurrent question times are not added together.
+
+The evaluator reads these sidecars automatically for each method and each year.
+It never estimates wall time from summed question times or file timestamps.
+Historical outputs without a sidecar have blank durations; partial coverage
+produces a subtotal with explicit coverage counts. A bounded run records only
+work completed/attempted so far, not an estimate for the whole PDF.
+
+When adding timing columns to an otherwise compatible `experiment.csv`, the
+writer preserves existing rows and scores and leaves their timing cells blank.
+Other incompatible schema changes still require a new output directory.
+
 ## LLM costs
 
 Evaluation automatically reads the extraction costs already saved in the MCQ
-JSON. `experiment.csv` adds `llm_cost_usd`, `llm_cost_currency`,
+JSON. Its cost metric is **average recorded USD per PDF**, rather than the total
+cost of all PDFs. `experiment.csv` reports `llm_cost_per_pdf_usd`,
+`llm_cost_pdf_count` (the denominator), `llm_missing_cost_pdfs`, `llm_cost_currency`,
 `llm_recorded_calls`, `llm_priced_calls`, `llm_missing_cost_calls`, and
 `llm_prompt_tokens`, `llm_completion_tokens`, and `llm_total_tokens`. The cost summary is also printed in the CLI.
 No additional argument, API key, or LLM call is required to read costs.
+
+For one PDF, cost/PDF is that PDF's recorded cost. For combined years, add the
+recorded costs and divide by the number of PDFs with reported costs. For example,
+$0.10 and $0.30 across two PDFs gives $0.20/PDF. A third PDF with unknown cost is
+excluded from the denominator and counted in `llm_missing_cost_pdfs`; it is never
+treated as free. The chart uses the same per-PDF metric and labels the USD axis
+accordingly. Partial per-call cost coverage still produces a marked subtotal.
 
 Costs use OpenRouter's saved `usage.cost` value; see its
 [usage accounting documentation](https://github.com/OpenRouterTeam/docs/blob/main/cookbook/administration/usage-accounting.mdx)
@@ -116,16 +206,18 @@ Costs cover the entire recorded extraction, including incomplete candidates
 and questions absent from the golden set.
 
 Missing or invalid costs remain null (blank in CSV), rather than being treated
-as free. A reported zero is retained. If only some costs are present,
-`llm_cost_usd` is their subtotal and `llm_missing_cost_calls` exposes the missing
-records. Token totals likewise include only reported values. Historical outputs
+as free. A reported zero is retained. `llm_missing_cost_calls` exposes missing
+per-call records; cost/PDF uses each priced PDF's recorded subtotal. Token totals
+likewise include only reported values. Historical outputs
 do not retain all failed or retried HTTP attempts, so these reports cannot
 reconstruct their charges or serve as a complete billing ledger. Evaluation
 itself uses local embeddings and makes no LLM requests.
 
-Existing `experiment.csv` files created before these additional columns have
-a different schema. Choose a new `--output-dir` when using such an older report;
-the evaluator preserves it rather than mixing incompatible rows.
+Compatible CSVs are upgraded when a new experiment is saved. Historical totals
+move to `legacy_llm_cost_usd`; their per-PDF cells remain blank because the PDF
+denominator was not recorded. Old scores are preserved and are not recomputed.
+Charts show historical rows without per-PDF values as unknown. Other incompatible
+schema changes still require a new `--output-dir`.
 
 Scores are decimal values, not percentages. Omit `--experiment-number` to use
 the next number automatically. Existing experiment numbers cannot be overwritten.
@@ -147,8 +239,8 @@ download; actual evaluation always uses sentence embeddings.
 ## Shared experiments
 
 The implementation lives in `src/evaluation`. All pipelines append to the same
-`results/experiment.csv` by default. `experiment_name` identifies `pdf_to_json`,
-`pdf_to_json_paddle`, or `pdf_to_json_my`; `experiment_number` uniquely identifies
+`results/experiment.csv` by default. `experiment_name` identifies the input folder
+or the supplied custom label; `experiment_number` uniquely identifies
 each run across pipelines. Input paths and hashes distinguish papers and outputs.
 Specify the label explicitly when evaluating a renamed input:
 
@@ -177,16 +269,18 @@ PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments
 ```
 
 This saves `results/experiments.png`. Scores use the left axis and recorded LLM
-API cost uses a separate USD axis. Unknown costs are shown as unknown; partial
+API cost per PDF uses a separate USD/PDF axis. Unknown costs are shown as unknown; partial
 costs are marked with an asterisk. Use `--output path.svg` for a vector chart.
 
 ## One row for all years
 
-Use `--mcq-root` to combine 2021–2025 into one experiment row. Question IDs are
-scoped by year before matching, so the same question number in two papers cannot
-collide. A missing yearly prediction file contributes zero predictions for that
-paper and lowers the aggregate scores; the CLI prints coverage for each year.
-Recorded LLM costs and token totals are summed across the available outputs.
+Use a positional experiment folder or `--mcq-root` to combine discovered PDFs into one experiment row. Question IDs are
+scoped by PDF name before matching, so the same question number in two papers cannot
+collide. By default only discovered PDFs are evaluated. With explicit
+`--years 2021 2022 2023 2024 2025`, missing yearly output contributes zero predictions
+and lowers aggregate scores; the CLI prints coverage for each PDF.
+Recorded LLM costs are averaged across PDFs with reported costs; token totals
+are summed across the available outputs. Missing PDF costs have a separate count.
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m evaluation \

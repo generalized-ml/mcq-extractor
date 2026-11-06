@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mxfile host="app.diagrams.net" type="device" version="24.7.17">
+  <diagram id="compact-pipeline" name="Low-cost MCQ extractor">
+    <mxGraphModel dx="1120" dy="760" grid="1" gridSize="10" page="1" pageScale="1" pageWidth="1120" pageHeight="760" background="#f8fafc" connect="1" arrows="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="eyebrow" parent="1" vertex="1" value="LOW-COST MCQ EXTRACTOR  /  PIPELINE" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#2563eb;fontStyle=1;spacing=0;">
+          <mxGeometry x="40" y="30" width="500" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="headline" parent="1" vertex="1" value="Local OCR. Selective review." style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=34;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="40" y="65" width="900" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" vertex="1" value="Keep document work local; send only selected question text to the LLM." style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=15;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="40" y="123" width="1000" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-0" parent="1" edge="1" source="pdf" target="crops" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-1" parent="1" edge="1" source="crops" target="workers" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-2" parent="1" edge="1" source="workers" target="parse" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-3" parent="1" edge="1" source="parse" target="review" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-4" parent="1" edge="1" source="parse" target="final" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="958" y="367" />
+              <mxPoint x="692" y="367" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge-5" parent="1" edge="1" source="review" target="final" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-6" parent="1" edge="1" source="final" target="evaluate" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge-7" parent="1" edge="1" source="evaluate" target="report" style="edgeStyle=none;html=1;rounded=0;strokeColor=#94a3b8;strokeWidth=2;endArrow=block;endFill=1;exitX=0;exitY=0.5;entryX=1;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="pdf" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#eff6ff;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="40" y="174" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="pdf-badge" parent="1" vertex="1" value="01" style="rounded=1;arcSize=30;fillColor=#2563eb;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="58" y="190" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="pdf-title" parent="1" vertex="1" value="Paper in" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="58" y="227" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="pdf-line-0" parent="1" vertex="1" value="PDF + source identity" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="58" y="265" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="pdf-line-1" parent="1" vertex="1" value="Hash-checked provenance" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="58" y="284" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="crops" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#eff6ff;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="306" y="174" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="crops-badge" parent="1" vertex="1" value="02" style="rounded=1;arcSize=30;fillColor=#2563eb;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="324" y="190" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="crops-title" parent="1" vertex="1" value="Verified crops" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="324" y="227" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="crops-line-0" parent="1" vertex="1" value="Reuse saved question images" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="324" y="265" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="crops-line-1" parent="1" vertex="1" value="or Docling + Vision boundaries" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="324" y="284" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="workers" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#ecfdf5;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="572" y="174" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="workers-badge" parent="1" vertex="1" value="03" style="rounded=1;arcSize=30;fillColor=#059669;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="590" y="190" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="workers-title" parent="1" vertex="1" value="Parallel local OCR" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="590" y="227" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="workers-line-0" parent="1" vertex="1" value="max(1, N // 2) workers" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="590" y="265" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="workers-line-1" parent="1" vertex="1" value="2 CPU threads per worker" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="590" y="284" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="workers-line-2" parent="1" vertex="1" value="Recognition batches of 8" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="590" y="303" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="parse" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#fff7ed;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="838" y="174" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="parse-badge" parent="1" vertex="1" value="04" style="rounded=1;arcSize=30;fillColor=#c2410c;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="856" y="190" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="parse-title" parent="1" vertex="1" value="Parse + route" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="856" y="227" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="parse-line-0" parent="1" vertex="1" value="Stem, options, printed answer" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="856" y="265" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="parse-line-1" parent="1" vertex="1" value="Confidence + structural checks" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="856" y="284" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="parse-line-2" parent="1" vertex="1" value="Choose questions for review" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="856" y="303" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="report" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#eff6ff;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="40" y="414" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="report-badge" parent="1" vertex="1" value="08" style="rounded=1;arcSize=30;fillColor=#2563eb;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="58" y="430" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="report-title" parent="1" vertex="1" value="Results out" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="58" y="467" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="report-line-0" parent="1" vertex="1" value="Scores + recorded USD/PDF" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="58" y="505" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="report-line-1" parent="1" vertex="1" value="Pipeline and evaluation time" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="58" y="524" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="report-line-2" parent="1" vertex="1" value="experiment.csv or --no-save" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="58" y="543" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="evaluate" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#eff6ff;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="306" y="414" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="evaluate-badge" parent="1" vertex="1" value="07" style="rounded=1;arcSize=30;fillColor=#2563eb;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="324" y="430" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="evaluate-title" parent="1" vertex="1" value="Evaluate · optional" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="324" y="467" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="evaluate-line-0" parent="1" vertex="1" value="Match golden question IDs" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="324" y="505" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="evaluate-line-1" parent="1" vertex="1" value="Keyword + semantic scores" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="324" y="524" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="evaluate-line-2" parent="1" vertex="1" value="Any experiment folder" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="324" y="543" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="final" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#ecfdf5;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="572" y="414" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="final-badge" parent="1" vertex="1" value="06" style="rounded=1;arcSize=30;fillColor=#059669;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="590" y="430" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="final-title" parent="1" vertex="1" value="Ordered MCQ JSON" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="590" y="467" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="final-line-0" parent="1" vertex="1" value="final_mcqs.json + provenance" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="590" y="505" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="final-line-1" parent="1" vertex="1" value="Parent saves checkpoints" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="590" y="524" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="final-line-2" parent="1" vertex="1" value="Resume completed questions" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="590" y="543" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="review" parent="1" vertex="1" value="" style="rounded=1;arcSize=14;fillColor=#f5f3ff;strokeColor=#e2e8f0;strokeWidth=1;">
+          <mxGeometry x="838" y="414" width="240" height="154" as="geometry" />
+        </mxCell>
+        <mxCell id="review-badge" parent="1" vertex="1" value="05" style="rounded=1;arcSize=30;fillColor=#7c3aed;strokeColor=none;fontColor=#ffffff;fontSize=12;fontFamily=Helvetica;fontStyle=1;">
+          <mxGeometry x="856" y="430" width="30" height="26" as="geometry" />
+        </mxCell>
+        <mxCell id="review-title" parent="1" vertex="1" value="Selective LLM review" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=17;fontColor=#0f172a;fontStyle=1;spacing=0;">
+          <mxGeometry x="856" y="467" width="210" height="27" as="geometry" />
+        </mxCell>
+        <mxCell id="review-line-0" parent="1" vertex="1" value="Full OCR text + draft JSON" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="856" y="505" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="review-line-1" parent="1" vertex="1" value="Text-only OpenRouter request" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="856" y="524" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="review-line-2" parent="1" vertex="1" value="--ocr-only defers this step" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="856" y="543" width="210" height="19" as="geometry" />
+        </mxCell>
+        <mxCell id="skip-review" parent="1" vertex="1" value="No review needed → keep local" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#059669;fontStyle=1;spacing=0;">
+          <mxGeometry x="695" y="340" width="225" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="selected-review" parent="1" vertex="1" value="Review selected" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=12;fontColor=#7c3aed;fontStyle=1;spacing=0;">
+          <mxGeometry x="970" y="354" width="132" height="36" as="geometry" />
+        </mxCell>
+        <mxCell id="ocr-strip" parent="1" vertex="1" value="" style="rounded=1;arcSize=12;fillColor=#0f172a;strokeColor=none;">
+          <mxGeometry x="40" y="610" width="1038" height="98" as="geometry" />
+        </mxCell>
+        <mxCell id="ocr-strip-text-0" parent="1" vertex="1" value="INSIDE EACH OCR WORKER" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=11;fontColor=#a7f3d0;fontStyle=1;spacing=0;">
+          <mxGeometry x="56" y="618" width="1005" height="23" as="geometry" />
+        </mxCell>
+        <mxCell id="ocr-strip-text-1" parent="1" vertex="1" value="PP-LCNetV3 detector → multi-scale fusion → text map → polygons → straighten lines" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=14;fontColor=#ffffff;fontStyle=0;spacing=0;">
+          <mxGeometry x="56" y="644" width="1005" height="23" as="geometry" />
+        </mxCell>
+        <mxCell id="ocr-strip-text-2" parent="1" vertex="1" value="PP-LCNetV3 recognizer → SVTR attention → character head → CTC decoding → text + confidence" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=14;fontColor=#ffffff;fontStyle=0;spacing=0;">
+          <mxGeometry x="56" y="669" width="1005" height="23" as="geometry" />
+        </mxCell>
+        <mxCell id="footnote" parent="1" vertex="1" value="N = physical cores · Workers capped by pending questions · Parent owns checkpoints · Confidence is uncalibrated" style="text;html=0;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Helvetica;fontSize=11;fontColor=#475569;fontStyle=0;spacing=0;">
+          <mxGeometry x="40" y="722" width="1040" height="23" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

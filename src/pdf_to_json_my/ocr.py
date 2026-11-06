@@ -64,6 +64,21 @@ def rectify(image, box):
                                               flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE))
 
 
+def recognize_crops(crops, processor, model, device, profiler):
+    """Recognize one batch, preserving each line's aspect ratio before padding."""
+    import torch
+    with profiler.measure('recognizer_preprocessing_and_batching'):
+        tensors = [processor(images=crop, return_tensors='pt')['pixel_values'] for crop in crops]
+        width = max(t.shape[-1] for t in tensors)
+        batch = {'pixel_values': torch.cat([
+            torch.nn.functional.pad(t, (0, width-t.shape[-1])) for t in tensors
+        ]).to(device=device, dtype=model.dtype)}
+    with profiler.measure('recognizer_forward_total'):
+        recognition = model(**batch)
+    with profiler.measure('ctc_decoding'):
+        return processor.post_process_text_recognition(recognition)
+
+
 class HFMobileReader:
     def __init__(self, *, det_model=DET_MODEL, rec_model=REC_MODEL,
                  det_revision=DET_REVISION, rec_revision=REC_REVISION,
@@ -79,40 +94,52 @@ class HFMobileReader:
         rec = cached_model(rec_model, rec_revision, local_files_only=local_files_only)
         self.det_processor = AutoImageProcessor.from_pretrained(det, local_files_only=True)
         self.rec_processor = AutoImageProcessor.from_pretrained(rec, local_files_only=True)
-        self.detector = AutoModelForObjectDetection.from_pretrained(det, local_files_only=True).to(device).eval()
-        self.recognizer = AutoModelForTextRecognition.from_pretrained(rec, local_files_only=True).to(device).eval()
+        self.detector = AutoModelForObjectDetection.from_pretrained(
+            det, local_files_only=True, dtype="auto").to(device).eval()
+        self.recognizer = AutoModelForTextRecognition.from_pretrained(
+            rec, local_files_only=True, dtype="auto").to(device).eval()
         self.model_info = {"detector": det, "recognizer": rec}
 
-    def read(self, path):
+    def read(self, path, *, profile=False):
+        from .profiling import OCRProfiler
+        with OCRProfiler(self, enabled=profile) as profiler:
+            result = self._read(path, profiler)
+        if profile:
+            result['timings'] = profiler.report(result['seconds'])
+        return result
+
+    def _read(self, path, profiler):
         import torch
         import numpy as np
         from PIL import Image
         start = time.monotonic()
-        with Image.open(path) as source:
-            image = source.convert('RGB')
+        with profiler.measure('image_loading'):
+            with Image.open(path) as source:
+                image = source.convert('RGB')
         lines = []
         try:
             with torch.inference_mode():
-                inputs = self.det_processor(images=image, return_tensors='pt').to(self.device)
-                target_sizes = inputs.pop('target_sizes')
-                detection = self.det_processor.post_process_object_detection(
-                    self.detector(**inputs), target_sizes=target_sizes)[0]
-                boxes = reading_order(detection['boxes'].cpu().tolist())
-                pixels = np.asarray(image)
+                with profiler.measure('detector_preprocessing'):
+                    inputs = self.det_processor(images=image, return_tensors='pt').to(self.device)
+                    target_sizes = inputs.pop('target_sizes')
+                    inputs['pixel_values'] = inputs['pixel_values'].to(self.detector.dtype)
+                with profiler.measure('detector_forward_total'):
+                    detector_output = self.detector(**inputs)
+                with profiler.measure('text_polygon_extraction'):
+                    # OpenCV box scoring cannot consume NumPy float16 maps.
+                    detector_output.last_hidden_state = detector_output.last_hidden_state.float()
+                    detection = self.det_processor.post_process_object_detection(
+                        detector_output, target_sizes=target_sizes)[0]
+                with profiler.measure('reading_order_and_image_array'):
+                    boxes = reading_order(detection['boxes'].cpu().tolist())
+                    pixels = np.asarray(image)
                 for start_index in range(0, len(boxes), self.batch_size):
                     batch_boxes = boxes[start_index:start_index+self.batch_size]
-                    crops = [rectify(pixels, box) for box in batch_boxes]
+                    with profiler.measure('line_cropping_and_rectification'):
+                        crops = [rectify(pixels, box) for box in batch_boxes]
                     try:
-                        # Process independently to preserve each line's aspect ratio.
-                        # The upstream batched processor stretches every image to
-                        # one width. Pad normalized tensors instead.
-                        tensors = [self.rec_processor(images=crop, return_tensors='pt')['pixel_values']
-                                   for crop in crops]
-                        width = max(t.shape[-1] for t in tensors)
-                        batch = {'pixel_values': torch.cat([
-                            torch.nn.functional.pad(t, (0, width-t.shape[-1])) for t in tensors
-                        ]).to(self.device)}
-                        recognized = self.rec_processor.post_process_text_recognition(self.recognizer(**batch))
+                        recognized = recognize_crops(
+                            crops, self.rec_processor, self.recognizer, self.device, profiler)
                     finally:
                         for crop in crops:
                             crop.close()

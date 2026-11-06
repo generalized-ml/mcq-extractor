@@ -21,6 +21,15 @@ from pdf_to_json_my.structure import parse_mcq, route_question
 from pdf_to_jsons.pdf_to_mcqs import file_hash
 
 
+class SpawnReader:
+    """Importable fake reader for real spawn-process regression checks."""
+    def __init__(self, **kwargs):
+        self.model_info = {'fake': 'spawn-regression'}
+
+    def read(self, path):
+        return transcription(path.parent.name.split('_q')[1])
+
+
 def text(number="1"):
     return f"{number}. Find $x^{{2}}$.\n(1) One\n(2) Two\n(3) Three\n(4) Four\nAnswer: (2)\nSol. Printed explanation."
 
@@ -104,7 +113,7 @@ class PipelineTests(unittest.TestCase):
         (self.source / "crop_pipeline.json").write_text(json.dumps({"identity": {"pdf_sha256": file_hash(self.pdf)},
                                                                    "results": records, "anchors": [{}, {}]}))
         self.args = build_parser().parse_args([str(self.pdf), "--output", str(self.root / "out"),
-                                               "--crops-dir", str(self.source)])
+                                               "--crops-dir", str(self.source), "--workers", "1", "--device", "cpu"])
         self.ocr_calls, self.review_calls = [], []
         owner = self
 
@@ -181,6 +190,47 @@ class PipelineTests(unittest.TestCase):
         self.pdf.write_bytes(b"different PDF")
         with self.assertRaisesRegex(ValueError, "different PDF"):
             self.execute()
+
+    def test_parallel_spawn_preserves_question_order_and_resumes(self):
+        self.reader = SpawnReader
+        self.args.workers = 2
+        self.args.physical_cores = 4
+        self.args.ocr_only = True
+        path = self.execute()
+        data = json.loads(path.read_text())
+        self.assertEqual([q['question_number'] for q in data['questions']], ['1', '2'])
+        state = json.loads((path.parent / 'pipeline.json').read_text())
+        self.assertEqual(state['ocr_execution']['workers'], 2)
+        self.assertTrue(all(r['ocr_execution']['worker_pid'] != os.getpid() for r in state['results'].values()))
+        self.args.resume = True
+        self.args.workers = 1
+        with patch('pdf_to_json_my.question_workers.HFMobileReader', side_effect=AssertionError('No pending OCR')):
+            self.execute()
+
+    def test_limit_caps_submitted_questions_before_worker_creation(self):
+        self.args.workers = 4
+        self.args.limit = 1
+        self.args.ocr_only = True
+        path = self.execute()
+        self.assertEqual(self.ocr_calls, ['1'])
+        self.assertEqual(json.loads(path.read_text())['pending_ocr_count'], 1)
+        state = json.loads((path.parent / 'pipeline.json').read_text())
+        self.assertEqual(state['ocr_execution']['workers'], 1)
+
+    def test_completed_question_is_checkpointed_before_worker_failure(self):
+        def completed_then_failed(items, root, options, settings, **kwargs):
+            yield {'key': items[1]['key'], 'transcripts': [transcription('2')],
+                   'models': {}, 'execution': {'seconds': .1, 'worker_pid': 123}}
+            raise RuntimeError('Worker failed')
+
+        self.args.ocr_only = True
+        with patch('pdf_to_json_my.pipeline.transcribe_questions', side_effect=completed_then_failed):
+            with self.assertRaisesRegex(RuntimeError, 'Worker failed'):
+                self.execute()
+        self.args.resume = True
+        path = self.execute()
+        self.assertEqual(self.ocr_calls, ['1'])
+        self.assertEqual([q['question_number'] for q in json.loads(path.read_text())['questions']], ['1', '2'])
 
 
 class ReviewTests(unittest.TestCase):

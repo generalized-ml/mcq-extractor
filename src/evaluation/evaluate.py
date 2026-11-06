@@ -10,8 +10,11 @@ import fcntl
 import hashlib
 import json
 import math
+import time
 from pathlib import Path
 from typing import Any, Callable
+
+from pdf_to_jsons.runtime import combine_runtimes, recorded_runtime
 
 
 WEIGHTS = {
@@ -24,6 +27,22 @@ GOLDEN_ROOT = Path(__file__).resolve().parents[2] / "dataset" / "golden"
 LABELS = {str(i): i for i in range(1, 5)} | {c: i for i, c in enumerate("ABCD", 1)}
 LLM_CALL_FIELDS = ("source", "response_id", "model", "status", "cost_usd",
                    "prompt_tokens", "completion_tokens", "total_tokens")
+TIMING_DEFAULTS = {
+    'method_wall_seconds': None, 'method_timed_pdfs': None,
+    'method_missing_time_pdfs': None, 'method_unfinished_time_pdfs': None,
+    'method_incomplete_history_pdfs': None,
+    'method_runtime_scope': None, 'evaluation_model_loading_seconds': None,
+    'evaluation_scoring_seconds': None, 'evaluation_wall_seconds': None,
+}
+COST_DEFAULTS = {'llm_cost_per_pdf_usd': None, 'llm_cost_pdf_count': None,
+                 'llm_missing_cost_pdfs': None}
+
+
+def cost_per_pdf_report(reports: list[dict], pdf_count: int) -> dict:
+    """Average recorded costs over PDFs with costs; expose unknown PDF costs."""
+    costs = [report['llm_cost_usd'] for report in reports if report['llm_cost_usd'] is not None]
+    return {'llm_cost_per_pdf_usd': math.fsum(costs) / len(costs) if costs else None,
+            'llm_cost_pdf_count': len(costs), 'llm_missing_cost_pdfs': pdf_count - len(costs)}
 
 
 def llm_cost_report(payload: Any) -> tuple[list[dict], dict]:
@@ -342,23 +361,61 @@ def find_golden_json(prediction_path: Path) -> Path:
     raise ValueError("Could not infer the golden JSON; pass --golden-json explicitly")
 
 
-def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]):
+def prediction_files(root: Path) -> dict[str, Path]:
+    """Discover public final outputs, with a fallback for original legacy runs."""
+    if not root.is_dir():
+        raise ValueError(f'Expected an experiment folder: {root}')
+    def final_in(folder):
+        canonical = folder / 'final_mcqs.json'
+        legacy = folder / 'mcq_with_llm' / f'{folder.name}_mcqs_with_llm.json'
+        return canonical if canonical.is_file() else legacy if legacy.is_file() else None
+    def paper_id(folder, path):
+        payload = json.loads(path.read_text(encoding='utf-8'))
+        source = payload.get('source_pdf') if isinstance(payload, dict) else None
+        return Path(source).stem if isinstance(source, str) and source else folder.name
+
+    single = final_in(root)
+    if single:
+        return {paper_id(root, single): single}
+    files = {}
+    for folder in sorted(root.iterdir()):
+        if not folder.is_dir() or not (found := final_in(folder)):
+            continue
+        paper = paper_id(folder, found)
+        if paper in files:
+            raise ValueError(f'Multiple outputs found for PDF {paper}: {files[paper]} and {found}')
+        files[paper] = found
+    return files
+
+
+def golden_file(root: Path, paper: str) -> Path:
+    candidates = [root / f'neet_{paper}' / f'{paper}_mcqs.json',
+                  root / paper / 'final_mcqs.json', root / paper / f'{paper}_mcqs.json',
+                  root / f'{paper}_mcqs.json', root / f'{paper}.json']
+    if root.name in (paper, f'neet_{paper}'):
+        candidates.append(root / 'final_mcqs.json')
+    for path in candidates:
+        if path.is_file():
+            return path
+    raise ValueError(f'Missing golden JSON for {paper} in {root}')
+
+
+def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int] | None = None):
     """Combine years while keeping identical question numbers distinct."""
-    if len(years) != len(set(years)) or not years:
+    files = prediction_files(root)
+    papers = [str(year) for year in years] if years is not None else list(files)
+    if not papers and years is None:
+        raise ValueError(f'No final_mcqs.json outputs found in {root}')
+    if len(papers) != len(set(papers)) or not papers:
         raise ValueError("Years must be unique and nonempty")
-    pattern = {
-        "pdf_to_json": "{year}/mcq_with_llm/{year}_mcqs_with_llm.json",
-        "pdf_to_json_paddle": "{year}/final_mcqs.json",
-        "pdf_to_json_my": "{year}/final_mcqs.json",
-    }[pipeline]
-    predictions, golden, per_year, cost_reports = [], [], [], []
+    predictions, golden, per_year, cost_reports, runtimes = [], [], [], [], []
     input_hash, golden_hash = hashlib.sha256(), hashlib.sha256()
     found = 0
-    for year in years:
-        golden_path = golden_root / f"neet_{year}" / f"{year}_mcqs.json"
-        if not golden_path.is_file():
-            raise ValueError(f"Missing golden JSON for {year}: {golden_path}")
-        prediction_path = root / pattern.format(year=year)
+    for paper in papers:
+        year = int(paper) if paper.isdecimal() else paper
+        golden_path = golden_file(golden_root, paper)
+        prediction_path = files.get(paper, root / paper / 'final_mcqs.json')
+        runtimes.append(recorded_runtime(prediction_path, None))
         source = prediction_path.read_bytes() if prediction_path.is_file() else None
         reference = golden_path.read_bytes()
         input_hash.update(f"{year}:".encode())
@@ -404,6 +461,8 @@ def load_combined(root: Path, pipeline: str, golden_root: Path, years: list[int]
         values = [report[key] for report in cost_reports if report[key] is not None]
         cost[key] = math.fsum(values) if key == "llm_cost_usd" and values else (
             sum(values) if values else None)
+    cost.update(combine_runtimes(runtimes))
+    cost.update(cost_per_pdf_report(cost_reports, len(papers)))
     return predictions, golden, cost, input_hash.hexdigest(), golden_hash.hexdigest(), per_year
 
 
@@ -427,9 +486,28 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
         number = experiment_number if experiment_number is not None else max(used, default=0) + 1
         if number in used:
             raise ValueError(f"Experiment {number} already exists; choose a new number")
-        record = {"experiment_number": number, **metadata, **summary}
+        added_defaults = {**COST_DEFAULTS, **TIMING_DEFAULTS}
+        record = {"experiment_number": number, **metadata,
+                  **{key: value for key, value in summary.items()
+                     if key not in added_defaults and key != 'llm_cost_usd'},
+                  **{key: summary.get(key, default) for key, default in added_defaults.items()}}
+        if header and ('llm_cost_usd' in header or 'legacy_llm_cost_usd' in header):
+            # Preserve historical totals without presenting them as cost/PDF.
+            record['legacy_llm_cost_usd'] = None
         if header is not None and header != list(record):
-            raise ValueError("Existing experiment.csv has a different schema; use another output directory")
+            ignored = set(added_defaults) | {'llm_cost_usd', 'legacy_llm_cost_usd'}
+            old_fields = [key for key in record if key not in ignored]
+            if [key for key in header if key not in ignored] != old_fields:
+                raise ValueError("Existing experiment.csv has a different schema; use another output directory")
+            for previous in existing:
+                if 'llm_cost_usd' in previous:
+                    previous['legacy_llm_cost_usd'] = previous.pop('llm_cost_usd')
+            stream.seek(0)
+            stream.truncate()
+            upgrade = csv.DictWriter(stream, fieldnames=list(record))
+            upgrade.writeheader()
+            upgrade.writerows(existing)
+            header = list(record)
         stream.seek(0, 2)
         writer = csv.DictWriter(stream, fieldnames=list(record))
         if header is None:
@@ -439,36 +517,48 @@ def save_results(output: Path, rows: list[dict], summary: dict, metadata: dict,
 
 
 def main() -> None:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser(description=__doc__)
-    inputs = parser.add_mutually_exclusive_group(required=True)
+    parser.add_argument('folder', nargs='?', type=Path, help='Experiment folder or one PDF output folder')
+    parser.add_argument('golden_folder', nargs='?', type=Path, help='Golden dataset folder (default: dataset/golden)')
+    inputs = parser.add_mutually_exclusive_group()
     inputs.add_argument("--mcq-json", type=Path, help="Evaluate one JSON file")
     inputs.add_argument("--mcq-root", type=Path, help="Evaluate all requested years as one experiment")
     parser.add_argument("--golden-json", type=Path,
                         help="Defaults to dataset/golden/neet_<year>/<year>_mcqs.json inferred from --mcq-json")
-    parser.add_argument("--golden-root", type=Path, default=GOLDEN_ROOT)
-    parser.add_argument("--years", type=int, nargs="+", default=[2021, 2022, 2023, 2024, 2025])
-    parser.add_argument("--experiment-name", choices=("pdf_to_json", "pdf_to_json_paddle", "pdf_to_json_my"),
-                        help="Pipeline label; inferred from input path if omitted")
+    parser.add_argument("--golden-root", type=Path)
+    parser.add_argument("--years", type=int, nargs="+", help='Optional explicit years, including missing outputs; default: discovered PDFs')
+    parser.add_argument("--experiment-name", help="Experiment label; defaults to folder name for folder input")
     parser.add_argument("--experiment-number", type=int, help="Defaults to the next unused experiment number")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument('--no-save', action='store_true',
+                        help='Print evaluation results without creating or updating experiment.csv')
     parser.add_argument("--model", default=DEFAULT_MODEL, help="SentenceTransformer model ID or local directory")
     parser.add_argument("--model-revision", help="Optional model commit for reproducible runs")
     parser.add_argument("--local-files-only", action="store_true", help="Do not download model files")
     parser.add_argument("--device", help="Embedding device, e.g. cpu, mps, or cuda")
     parser.add_argument("--batch-size", type=int, default=32)
     args = parser.parse_args()
+    if not (args.folder or args.mcq_root or args.mcq_json):
+        parser.error('Provide an experiment folder, --mcq-root, or --mcq-json')
+    if args.folder and (args.mcq_root or args.mcq_json):
+        parser.error('Use a positional folder or --mcq-root/--mcq-json, not both')
+    if args.golden_folder and (args.golden_root or args.golden_json):
+        parser.error('Provide the golden dataset either positionally or with a golden flag')
+    if args.golden_folder and not args.folder:
+        parser.error('A positional golden folder requires a positional experiment folder')
     if args.batch_size < 1 or (args.experiment_number is not None and args.experiment_number < 1):
         parser.error("Batch size and experiment number must be positive")
-    if args.mcq_root and args.golden_json:
+    if (args.folder or args.mcq_root) and args.golden_json:
         parser.error("Use --golden-root with --mcq-root")
     try:
-        prediction_path = (args.mcq_root or args.mcq_json).expanduser().resolve()
-        if args.mcq_root:
-            pipeline = args.experiment_name or experiment_name(prediction_path)
-            golden_path = args.golden_root.expanduser().resolve()
+        prediction_path = (args.folder or args.mcq_root or args.mcq_json).expanduser().resolve()
+        if args.folder or args.mcq_root:
+            pipeline = args.experiment_name or prediction_path.name
+            golden_path = (args.golden_folder or args.golden_root or GOLDEN_ROOT).expanduser().resolve()
             predictions, golden, cost_summary, prediction_hash, reference_hash, per_year = load_combined(
                 prediction_path, pipeline, golden_path, args.years)
-            print("Combined years: " + ", ".join(
+            print("PDF coverage: " + ", ".join(
                 f"{year}={actual}/{expected}" + (" (missing output)" if not present else "")
                 for year, actual, expected, present in per_year))
             llm_calls = None
@@ -479,6 +569,8 @@ def main() -> None:
             predictions = load_questions(prediction_path)
             golden = load_questions(golden_path, strict=True)
             llm_calls, cost_summary = llm_cost_report(json.loads(prediction_path.read_text(encoding="utf-8")))
+            cost_summary.update(cost_per_pdf_report([cost_summary], 1))
+            cost_summary.update(recorded_runtime(prediction_path, pipeline))
             prediction_hash = hashlib.sha256(prediction_path.read_bytes()).hexdigest()
             reference_hash = hashlib.sha256(golden_path.read_bytes()).hexdigest()
         if not golden:
@@ -491,22 +583,37 @@ def main() -> None:
             "golden_sha256": reference_hash,
             "model": args.model, "model_revision": args.model_revision or "default",
         }
+        model_started = time.perf_counter()
         encoder = SentenceEncoder(args.model, args.batch_size, args.local_files_only,
                                   args.device, args.model_revision)
+        loading_seconds = time.perf_counter() - model_started
+        scoring_started = time.perf_counter()
         rows, summary = evaluate(predictions, golden, encoder)
         summary.update(cost_summary)
-        number, details = save_results(args.output_dir.expanduser().resolve(), rows, summary,
-                                       metadata, args.experiment_number, llm_calls=llm_calls)
+        summary.update(evaluation_model_loading_seconds=loading_seconds,
+                       evaluation_scoring_seconds=time.perf_counter() - scoring_started,
+                       evaluation_wall_seconds=time.perf_counter() - started)
+        number, details = None, None
+        if not args.no_save:
+            number, details = save_results(args.output_dir.expanduser().resolve(), rows, summary,
+                                           metadata, args.experiment_number, llm_calls=llm_calls)
     except (OSError, ValueError, RuntimeError, ImportError) as exc:
         parser.exit(1, f"Evaluation failed: {exc}\n")
-    print(f"Experiment: {number}")
+    print(f"Experiment: {number}" if number is not None else f'Experiment: {pipeline} (print only)')
     print(f"keyword_score: {summary['keyword_score']:.8f}")
     print(f"semantic_score: {summary['semantic_score']:.8f}")
     print(f"aggregate_score: {summary['aggregate_score']:.8f}")
-    cost = summary["llm_cost_usd"]
-    print(f"Recorded LLM cost (USD): {cost:.8f}" if cost is not None else "Recorded LLM cost (USD): unknown")
+    cost = summary["llm_cost_per_pdf_usd"]
+    print(f"Recorded LLM cost/PDF (USD): {cost:.8f}" if cost is not None else "Recorded LLM cost/PDF (USD): unknown")
+    print(f"PDFs with reported cost: {summary['llm_cost_pdf_count']}; unknown: {summary['llm_missing_cost_pdfs']}")
     print(f"Calls with reported cost: {summary['llm_priced_calls']}/{summary['llm_recorded_calls']}")
-    print(f"Experiment scores: {details}")
+    method_seconds = summary['method_wall_seconds']
+    print(f'Method wall time: {method_seconds:.3f}s' if method_seconds is not None else 'Method wall time: unknown')
+    print(f"PDFs with recorded time: {summary['method_timed_pdfs']}; "
+          f"missing: {summary['method_missing_time_pdfs']}; unfinished timing: {summary['method_unfinished_time_pdfs']}")
+    print(f"PDFs with unrecorded earlier work: {summary['method_incomplete_history_pdfs']}")
+    print(f"Evaluation wall time: {summary['evaluation_wall_seconds']:.3f}s")
+    print(f"Experiment scores: {details}" if details is not None else 'Results printed only; CSV not updated.')
     if summary["solution_golden_empty_count"]:
         print(f"Note: {summary['solution_golden_empty_count']} golden answers are empty; "
               "their solution contribution is zero.")

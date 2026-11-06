@@ -11,9 +11,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import time
 
 from pdf_to_jsons.hybrid_mcq.run import save_json
 from pdf_to_jsons.pdf_to_mcqs import file_hash
+from pdf_to_jsons.runtime import RuntimeRecorder
 from .crops import inside, prepare_crops
 from .ocr import MODEL_ID, PaddleReader
 from .mobile import MobileReader, scope_confidence
@@ -33,6 +35,7 @@ def code_hash() -> str:
 
 
 def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
+    started = time.perf_counter()
     pdf = args.pdf.expanduser().resolve()
     if not pdf.is_file() or pdf.suffix.lower() != ".pdf":
         raise ValueError(f"Expected an existing PDF: {pdf}")
@@ -56,9 +59,11 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
         root.mkdir(parents=True, exist_ok=True)
         state = {"identity": identity, "results": {}, "llm_calls": []}
         save_json(path, state)
+    runtime = RuntimeRecorder(root, 'pdf_to_json_paddle', started=started, history_complete=not args.resume)
     if "plan" not in state:
         state["plan"], state["crop_source"] = prepare_crops(pdf, root, args)
         save_json(path, state)
+        runtime.save()
     plan, results = state["plan"], state["results"]
     for item in plan:
         for relative, expected in item["artifacts"].items():
@@ -70,6 +75,7 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
                 raise ValueError(f"Saved OCR artifact changed: {relative}")
 
     def checkpoint():
+        runtime.save()
         drafts, final = [], []
         for item in plan:
             record = results.get(item["key"])
@@ -185,6 +191,7 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
                 record["review"] = {"status": "error", "error": str(exc)}
             checkpoint()
     final = root / "final_mcqs.json"
+    runtime.save(finished=True)
     print(f"Saved: {final}")
     if any(record.get("review", {}).get("status") == "error" for record in results.values()) and not args.ocr_only:
         raise RuntimeError("Some LLM reviews failed; saved outputs can be retried with --resume")

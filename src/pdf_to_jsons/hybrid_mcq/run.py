@@ -312,6 +312,8 @@ def run(args: argparse.Namespace) -> None:
                             "source_raw_json": str(args.raw_json.resolve()),
                             "selected_count": len(tasks)}
         save_json(args.output, output)
+        if args.output.parent.name == 'mcq_with_llm':
+            save_json(args.output.parent.parent / 'final_mcqs.json', output)
 
     checkpoint()
     calls = 0

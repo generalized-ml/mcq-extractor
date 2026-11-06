@@ -63,6 +63,8 @@ class PipelineTests(unittest.TestCase):
         self.assertTrue(raw.is_file())
         self.assertTrue(mcqs.is_file())
         data = json.loads(final.read_text())
+        self.assertEqual(json.loads((root / 'final_mcqs.json').read_text()), data)
+        self.assertEqual(json.loads((root / 'mcqs.json').read_text()), json.loads(mcqs.read_text()))
         self.assertEqual(data["source_json"], str(raw))
         self.assertEqual(data["questions"][0]["question_text"], "Pick $10^{5}$.")
 
@@ -86,6 +88,7 @@ class PipelineTests(unittest.TestCase):
                 pipeline.run_pipeline(self.args)
         final = self.args.output_folder / "paper/mcq_with_llm/paper_mcqs_with_llm.json"
         data = json.loads(final.read_text())
+        self.assertEqual(json.loads((final.parent.parent / 'final_mcqs.json').read_text()), data)
         self.assertEqual(data["questions"][0]["llm_error"], "offline error")
         self.assertTrue(data["questions"][0]["needs_review"])
 

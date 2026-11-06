@@ -5,6 +5,10 @@ and labeling export. It reuses the repository's proven `pdf_to_jsons` Docling
 crop engine, OpenRouter transport/schema, and evaluator. It does not import or
 require `paddleocr` or `paddlepaddle`.
 
+See the [project overview](../../README.md) and editable
+[draw.io pipeline design](../../docs/low-cost-mcq-extractor.drawio) for the complete
+flow and local OCR model architecture.
+
 ## Setup and run
 
 ```bash
@@ -44,6 +48,94 @@ Recognition runs in batches of 8 (`--batch-size`), preserving each line's aspect
 ratio before padding. `--device auto` selects CUDA or CPU. Explicit `--device mps`
 is experimental and fails clearly if unavailable. There is no autoregressive VL
 model, orientation classifier, unwarping, or document layout model here.
+
+## Parallel questions across a PDF
+
+CPU OCR automatically detects the number of **physical** CPU cores, `N`, and
+starts `max(1, N // 2)` persistent question workers. Each uses two PyTorch CPU
+threads (one on a single-core machine) and loads the detector/recognizer once.
+On an eight-core CPU this gives four concurrent questions; on a sixteen-core
+CPU it gives eight. The number of workers is capped at the number of pending
+questions after applying `--limit` and excluding completed checkpoints.
+
+For `X` pending questions and `P` workers, each handles approximately
+`ceil(X / P)` questions. A shared task queue assigns complete questions to free
+workers instead of waiting for a fixed group to finish. All continuation crops
+for one question stay together and retain their original order. Recognition
+inside each worker retains batches of eight; there is no nested process pool.
+The two CPU threads execute a question's model operations; individual threads
+are not pinned to dedicated physical cores.
+
+```bash
+# Use a fresh output directory when migrating from the earlier code version.
+JSON_CROPS_MY_OUTPUT=outputs/json_crops_my_parallel \
+  bash json_crops_my.sh --ocr-only
+
+# Limit memory use or run serially.
+bash json_crops_my.sh --workers 2 --ocr-only
+bash json_crops_my.sh --workers 1 --ocr-only
+```
+
+`--physical-cores N` overrides unavailable core detection. GPU inference uses
+one worker; multiple question workers require CPU. Models are resolved/downloaded
+once in the parent before starting workers, which then load local weights only.
+Each worker has its own models and inference memory; reduce `--workers` if needed.
+
+Only the parent writes OCR artifacts and checkpoints as questions complete.
+MCQ output and LLM review retain plan order even if OCR finishes out of order.
+On resume, completed questions are skipped; worker settings can change without
+invalidating results. `pipeline.json` records the allocation, and each question
+records its worker PID, OCR time, and model initialization time. All OCR workers
+exit before selective LLM review and evaluation begin. The Docling crop stage
+and remote review retain their existing scheduling.
+
+## Timing each OCR stage
+
+Profile a saved question crop with cached models:
+
+```bash
+.venv/bin/python -m pdf_to_json_my.profiling \
+  outputs/json_crops_my_all/2021/questions/0002_q3/patch.png --precision float32
+```
+
+Use `--precision float16` for the local copies created by `model_quantization`.
+Each command measures model initialization separately, then a first and warm
+OCR pass. Reports default to `outputs/ocr_timing/stages_<precision>.json`;
+`--output` selects another path. `--device` and `--batch-size` select execution
+settings. Only cached/local models are loaded.
+
+Timings include preprocessing, detector backbone/feature fusion/head, polygon
+extraction, line cropping, recognizer backbone/SVTR encoder/classifier, and CTC
+decoding. Recognition times sum all line batches. The SVTR encoder includes
+convolutions around its attention blocks. Other model operations include pooling,
+softmax, and framework overhead. Stage rows exclude nested totals to avoid double
+counting. GPU work is synchronized; profiling adds overhead, so compare profiled
+runs with each other. Normal `reader.read(path)` does not attach profiling hooks;
+`reader.read(path, profile=True)` adds a `timings` field to its result.
+
+## Benchmarking parallel recognition
+
+Compare one process using four PyTorch threads with two persistent recognition
+workers using two threads each, keeping FP32 and batches of eight:
+
+```bash
+.venv/bin/python -m pdf_to_json_my.parallel_benchmark \
+  outputs/json_crops_my_all/2021/questions/0002_q3/patch.png
+```
+
+The detector runs in the parent process. Recognition batches run in workers
+started with `spawn`; each loads its recognizer once. Image arrays are passed
+between processes and results are restored in batch/reading order. No LLM calls
+or pipeline checkpoint changes are made. All models must already be cached.
+
+The report at `outputs/ocr_timing/multiprocessing.json` includes initialization,
+three passes for each configuration (first plus two warm repeats), warm median
+speedup, and exact text/box comparisons against serial output. Recognition wall
+time includes dispatch, data transfer, and waiting for workers. Worker CPU times
+overlap and must not be added to wall time. Use `--workers`,
+`--threads-per-worker`, `--serial-threads`, `--batch-size`, `--runs`, or `--output`
+to vary the experiment. This is a benchmark; the standard pipeline continues to
+use its existing reader.
 
 ## Extraction and review
 
