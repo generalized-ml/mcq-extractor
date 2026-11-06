@@ -12,27 +12,39 @@ improved. Printed answers are transcribed from the supplied paper or solutions.
 
 ## Results
 
-The existing experiment chart is retained below:
+The latest **local OCR + LLM call** run extracts **978 of 980 questions** across
+the 2021–2025 NEET papers at **$0.01868 recorded LLM cost per PDF**.
+That is **55.3% lower recorded cost/PDF** than the original method, with an
+aggregate score of **0.7614**, compared with **0.7663** for the original method.
 
-![Recorded MCQ extraction experiment results](docs/result/experiments.png)
+![MCQ extraction quality and recorded LLM cost per PDF](docs/result/experiments.png)
 
-The recorded comparison in `results/experiment.csv` contains this snapshot:
+Recorded experiments from `results/experiment.csv`:
 
-| Method | Predicted / golden questions | Keyword score | Semantic score | Aggregate score | Recorded LLM cost / PDF |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Native local OCR + selective text review (`pdf_to_json_my`) | 779 / 980 | 0.5071 | 0.7200 | 0.6135 | $0.01851 |
-| Original Docling + vision review (`pdf_to_json`) | 965 / 980 | 0.6877 | 0.8449 | 0.7663 | $0.04179 |
+| Experiment | Method | Predicted / golden | Keyword | Semantic | Aggregate | Recorded USD / PDF |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| 3 | Local OCR + LLM call (latest) | 978 / 980 | 0.6264 | 0.8965 | 0.7614 | $0.01868 |
+| 2 | Docling + vision review | 965 / 980 | 0.6877 | 0.8449 | 0.7663 | $0.04179 |
+| 1 | Native OCR initial run (partial) | 779 / 980 | 0.5071 | 0.7200 | 0.6135 | $0.01851 |
 
-These are historical runs, not a completed comparison of both methods on all
-questions. The native run had 201 missing predictions, including 199 pending
-2023 questions. Cost/PDF averages PDFs with recorded costs: 4 of 5 for the native
-method and 5 of 5 for the original method. There were also 47 and 53 calls,
-respectively, without reported costs. Costs cover recorded LLM API usage;
-local compute is excluded. This snapshot has not been recomputed for this README.
+The latest local run has **2 missing predictions**, versus **15** for the original
+method. Its semantic score is higher, while its keyword score is lower; the
+aggregate difference is 0.0049 on the 0–1 scale. The initial native run is retained
+as history: it had 201 missing predictions, including 199 pending 2023 questions.
+
+**Cost coverage:** the latest local and original runs both have recorded costs
+for all five PDFs, but 47 of 501 local-method calls and 53 of 427 original-method
+calls have no reported cost. These values are recorded API-cost subtotals,
+averaged per PDF; local compute is excluded. The initial run had costs for
+four of five PDFs. Pipeline runtime is recorded for only one of five PDFs in
+the latest local run, so the saved data does not establish a full-run speed comparison.
 
 Keyword scoring uses exact matching word prefixes, so an early punctuation,
-Unicode, or LaTeX difference can stop a field's score. Missing questions score
-zero. See [evaluation details](docs/evaluation.md) for scoring and coverage rules.
+Unicode, or LaTeX difference can stop a field’s score. Missing questions score
+zero. These metrics measure text similarity rather than verified answer accuracy.
+See [evaluation details](docs/evaluation.md) for scoring and coverage rules.
+
+The table and chart use existing saved experiments; no evaluations were rerun.
 
 ## Pipeline design
 
