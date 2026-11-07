@@ -255,8 +255,7 @@ PYTHONPATH=src:. .venv/bin/python -m mcq_extractor.evaluation \
 Use `--experiment-name pdf_to_json` for the original pipeline. Omit `--output-dir`
 to keep all runs in the shared file. Existing two experiment summaries were
 migrated without recomputing scores; original reports are preserved in
-`outputs/evaluation_legacy_reports.zip`. The old module entry point remains a
-compatibility wrapper.
+`outputs/evaluation_legacy_reports.zip`. The evaluator now runs as `python -m mcq_extractor.evaluation`.
 
 The evaluator can infer the renamed golden path from a year in `--mcq-json`.
 For example, a 2021 output uses `dataset/golden/neet_2021/2021_mcqs.json`.

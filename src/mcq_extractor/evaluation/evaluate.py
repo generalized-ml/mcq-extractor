@@ -345,7 +345,7 @@ def experiment_name(path: Path) -> str:
     value = str(path).lower()
     if "paddle" in value:
         return "pdf_to_json_paddle"
-    if "json_crops_my" in value or "pdf_to_json_my" in value:
+    if any(name in value for name in ("json_crops_my", "pdf_to_json_my", "native_ocr", "mcq_extractor")):
         return "pdf_to_json_my"
     return "pdf_to_json"
 

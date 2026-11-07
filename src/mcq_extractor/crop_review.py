@@ -1,20 +1,14 @@
-"""Docling → shrinking Apple Vision crops → crop-only LLM extraction → evaluation."""
+"""Shared OpenRouter crop and text review requests."""
 
 from __future__ import annotations
 
-import base64
 import copy
 import json
-import os
-from pathlib import Path
-import subprocess
-import sys
 import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from .review_api import PROMPT, SCHEMA, save_json, validate_response
-from .common import file_hash
+from .review_api import PROMPT, SCHEMA, validate_response
 
 
 CROP_PROMPT = PROMPT + """

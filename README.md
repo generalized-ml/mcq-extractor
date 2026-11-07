@@ -19,19 +19,6 @@ aggregate score of **0.7614**, compared with **0.7663** for the original method.
 
 ![MCQ extraction quality and recorded LLM cost per PDF](docs/result/experiments.png)
 
-Recorded experiments from `results/experiment.csv`:
-
-| Experiment | Method | Predicted / golden | Keyword | Semantic | Aggregate | Recorded USD / PDF |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| 3 | Local OCR + LLM call (latest) | 978 / 980 | 0.6264 | 0.8965 | 0.7614 | $0.01868 |
-| 2 | Docling + vision review | 965 / 980 | 0.6877 | 0.8449 | 0.7663 | $0.04179 |
-| 1 | Native OCR initial run (partial) | 779 / 980 | 0.5071 | 0.7200 | 0.6135 | $0.01851 |
-
-The latest local run has **2 missing predictions**, versus **15** for the original
-method. Its semantic score is higher, while its keyword score is lower; the
-aggregate difference is 0.0049 on the 0–1 scale. The initial native run is retained
-as history: it had 201 missing predictions, including 199 pending 2023 questions.
-
 **Cost coverage:** the latest local and original runs both have recorded costs
 for all five PDFs, but 47 of 501 local-method calls and 53 of 427 original-method
 calls have no reported cost. These values are recorded API-cost subtotals,
@@ -44,7 +31,7 @@ Unicode, or LaTeX difference can stop a field’s score. Missing questions score
 zero. These metrics measure text similarity rather than verified answer accuracy.
 See [evaluation details](docs/evaluation.md) for scoring and coverage rules.
 
-The table and chart use existing saved experiments; no evaluations were rerun.
+The chart uses existing saved experiments; no evaluations were rerun.
 
 ## Pipeline design
 
@@ -76,7 +63,37 @@ OPENROUTER_MODEL=google/gemini-2.5-flash-lite
 The native pipeline loads this file. Local OCR with `--ocr-only` works without
 an API key.
 
-### Google Colab / Linux
+### Apple / macOS
+
+The setup above installs Apple Vision for crop generation. Run the main OCR
+stage on the Apple GPU when PyTorch reports MPS available:
+
+```bash
+python -c "import torch; print('MPS available:', torch.backends.mps.is_available())"
+
+bash src/mcq_extractor/run.sh dataset/pdfs/2021.pdf \
+  --crop-ocr vision --device mps --workers 1 --ocr-only \
+  --output outputs/apple_mps
+```
+
+Use `--device cpu` if MPS is unavailable. Remove `--ocr-only` to enable selected
+LLM review after configuring `.env`.
+
+### Linux
+
+Use the same virtual environment and installation commands above. Select native
+PP-OCRv5 for crop generation; `auto` uses CUDA when available and CPU otherwise:
+
+```bash
+bash src/mcq_extractor/run.sh dataset/pdfs/2021.pdf \
+  --crop-ocr hf --crop-device auto --device auto --ocr-only \
+  --output outputs/linux_ocr
+```
+
+For CPU execution, set both `--crop-device cpu` and `--device cpu`. Remove
+`--ocr-only` to enable selected LLM review after configuring `.env`.
+
+### Google Colab
 
 After updating the cloned repository, install dependencies in a notebook cell:
 
@@ -127,7 +144,7 @@ To reuse saved crops explicitly:
 
 Choose a fresh output directory when PDF, OCR settings, or checkpointed code
 changes. `--resume` verifies saved inputs and artifacts. The shell script defaults
-to the 2021 PDF and `outputs/json_crops_my`; `MCQ_OUTPUT` sets the
+to the 2021 PDF and `outputs/native_ocr`; `MCQ_OUTPUT` sets the
 experiment folder. See the [native pipeline guide](src/mcq_extractor/README.md)
 for concurrency, profiling, local models, and labeling export.
 
@@ -206,3 +223,27 @@ PYTHONPATH=src:. .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 Tests use offline fixtures and mocked external calls. Extraction can still miss
 text, confuse option labels, or alter formulas; inspect uncertain questions
 against their saved images before using the JSON as verified data.
+
+## Repository layout
+
+```text
+src/
+└── mcq_extractor/           # Maintained native OCR pipeline
+    ├── run.sh              # Main PDF launcher
+    ├── document/           # Shared Docling conversion and crop engine
+    └── evaluation/         # Scoring and experiment plots
+experiments/
+├── docling/                # Original heuristic extraction and vision review
+│   └── run.sh              # Convert a directory of PDFs
+├── vision/                 # Crop-only vision LLM pipeline
+│   └── run.sh
+├── paddle/                 # Paddle mobile and vision-language alternatives
+│   └── run.sh
+├── precision/              # FP16 checkpoint conversion
+└── recognition/            # Recognition multiprocessing benchmark
+```
+
+Run shell commands from the repository root. The main package is
+`mcq_extractor`; alternate pipelines run as `python -m experiments.<version>`.
+See [experiment commands](experiments/README.md). Existing datasets, output
+folders, CSV results, and historical method identifiers retain their names.

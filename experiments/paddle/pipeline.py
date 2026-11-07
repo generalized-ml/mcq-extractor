@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from mcq_extractor.review_api import save_json
+from mcq_extractor.common import save_json
 from mcq_extractor.common import file_hash
 from mcq_extractor.paths import REPOSITORY_ROOT
 from mcq_extractor import document, crop_review

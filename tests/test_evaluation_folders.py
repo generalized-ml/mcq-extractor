@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from mcq_extractor.evaluation.evaluate import golden_file, load_combined, prediction_files
+from mcq_extractor.evaluation.evaluate import experiment_name, golden_file, load_combined, prediction_files
 
 
 class FolderInputTests(unittest.TestCase):
@@ -58,6 +58,11 @@ class FolderInputTests(unittest.TestCase):
         actual, golden, cost, _, _, coverage = load_combined(self.inputs, 'custom', self.golden, [2021, 2022])
         self.assertEqual((len(actual), len(golden)), (1, 2))
         self.assertEqual(coverage[-1], (2022, 0, 1, False))
+
+    def test_native_output_keeps_historical_method_id(self):
+        for name in ("native_ocr", "json_crops_my_all", "mcq_extractor"):
+            with self.subTest(name=name):
+                self.assertEqual(experiment_name(Path("outputs") / name), "pdf_to_json_my")
 
     def test_flat_golden_folder(self):
         path = self.golden / 'paperA.json'

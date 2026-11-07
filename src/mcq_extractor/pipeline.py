@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from mcq_extractor.review_api import save_json
+from mcq_extractor.common import save_json
 from mcq_extractor.common import file_hash
 from mcq_extractor.paths import REPOSITORY_ROOT
 from mcq_extractor import document, crop_review
@@ -229,7 +229,7 @@ def run(args, *, reader_factory=None, reviewer=review_question) -> Path:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("pdf", type=Path)
-    parser.add_argument("--output", type=Path, default=WORKSPACE / "outputs/json_crops_my")
+    parser.add_argument("--output", type=Path, default=WORKSPACE / "outputs/native_ocr")
     parser.add_argument("--crops-dir", type=Path, help="Existing verified Docling crop run, e.g. outputs/json_crops_fast/2021")
     parser.add_argument("--raw-json", type=Path, help="Docling source JSON when generating new crops")
     parser.add_argument('--crop-ocr', choices=('auto', 'vision', 'hf'), default='auto',

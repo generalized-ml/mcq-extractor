@@ -2,14 +2,14 @@
 # Convert dataset/pdfs to dataset/jsons by default.
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONVERTER="$SCRIPT_DIR/experiments/docling/pipeline.py"
-export PYTHONPATH="$SCRIPT_DIR/src:$SCRIPT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
+CONVERTER="$REPO_ROOT/experiments/docling/pipeline.py"
+export PYTHONPATH="$REPO_ROOT/src:$REPO_ROOT${PYTHONPATH:+:$PYTHONPATH}"
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     echo "Usage: $0 [PDF_DIRECTORY] [OUTPUT_DIRECTORY] [PIPELINE_OPTIONS...]"
-    echo "Default input: $SCRIPT_DIR/dataset/pdfs"
-    echo "Default output: $SCRIPT_DIR/dataset/jsons"
+    echo "Default input: $REPO_ROOT/dataset/pdfs"
+    echo "Default output: $REPO_ROOT/dataset/jsons"
     echo "Processes all PDFs in the input directory."
     echo "Writes per-PDF raw/, mcqs/, mcq_with_llm/, and pipeline.json under OUTPUT_DIRECTORY."
     echo "Pass pipeline options after both directories, e.g. --dry-run or --resume."
@@ -18,7 +18,7 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     exit 0
 fi
 
-PDF_DIR="${1:-$SCRIPT_DIR/dataset/pdfs}"
+PDF_DIR="${1:-$REPO_ROOT/dataset/pdfs}"
 if [[ ! -d "$PDF_DIR" ]]; then
     echo "PDF directory not found: $PDF_DIR" >&2
     exit 1
@@ -28,7 +28,7 @@ if [[ ! -f "$CONVERTER" ]]; then
     exit 1
 fi
 PDF_DIR="$(cd -- "$PDF_DIR" && pwd)"
-OUTPUT_DIR="${2-$SCRIPT_DIR/dataset/jsons}"
+OUTPUT_DIR="${2-$REPO_ROOT/dataset/jsons}"
 if [[ -z "$OUTPUT_DIR" ]]; then
     echo "Output directory cannot be empty." >&2
     exit 2
@@ -44,8 +44,8 @@ PIPELINE_ARGS=("$@")
 
 if [[ -n "${DOCLING_PYTHON:-}" ]]; then
     PYTHON="$DOCLING_PYTHON"
-elif [[ -x "$SCRIPT_DIR/.venv/bin/python" ]]; then
-    PYTHON="$SCRIPT_DIR/.venv/bin/python"
+elif [[ -x "$REPO_ROOT/.venv/bin/python" ]]; then
+    PYTHON="$REPO_ROOT/.venv/bin/python"
 else
     PYTHON="python3"
 fi

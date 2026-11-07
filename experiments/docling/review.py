@@ -1,6 +1,7 @@
 """Original Docling evidence and vision review experiment."""
 
 import argparse
+import copy
 import hashlib
 import json
 import os

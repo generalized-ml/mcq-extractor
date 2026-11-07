@@ -86,7 +86,7 @@ class HFMobileCropOCR:
             from mcq_extractor.ocr import HFMobileReader
             self.reader = HFMobileReader(device=device, local_files_only=local_files_only)
         except ImportError as exc:
-            raise RuntimeError("Install portable crop OCR: python -m pip install -e '.[my,crop]'") from exc
+            raise RuntimeError("Install portable crop OCR: python -m pip install -e '.[ocr,crop]'") from exc
         if self.reader.device == 'cpu':
             import torch
             torch.set_num_threads(2)

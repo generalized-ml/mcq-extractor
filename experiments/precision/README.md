@@ -9,7 +9,7 @@ From the repository root, convert the cached, pinned detector and recognizer:
 Omit `--local-files-only` to download missing original weights. The recognizer's
 official repository name ends in `rec_safetensors` (plural).
 
-Both converted model folders are saved under `model_quantization/models/`, beside
+Both converted model folders are saved under `experiments/precision/models/`, beside
 this code. The original Hugging Face cache stays intact. Each folder includes
 the processor, config, FP16 safetensors weights, and a conversion report. Existing
 destinations are refused; use `--output-dir` for another conversion.

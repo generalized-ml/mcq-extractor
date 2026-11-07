@@ -18,7 +18,7 @@ paths remain readable. The default experiment label is the input folder name;
 `--experiment-name` can override it. Explicit `--years` includes missing years
 in the comparison; otherwise only discovered PDFs are evaluated.
 
-See [evaluation documentation](../../docs/evaluation.md) for commands and scoring.
+See [evaluation documentation](../../../docs/evaluation.md) for commands and scoring.
 Results append to `results/experiment.csv`, with a pipeline label and unique run number.
 Each method's recorded PDF wall time and evaluation duration are saved in separate
 columns. Pipeline runs save timing sessions in per-PDF `runtime.json` sidecars;

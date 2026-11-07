@@ -1,7 +1,7 @@
 # PDF → MCQ JSON: native Hugging Face mobile OCR
 
 This package owns the OCR, confidence, parsing, review orchestration, checkpoints,
-and labeling export. It reuses the repository's proven `pdf_to_jsons` Docling
+and labeling export. It reuses the repository's proven `document` Docling
 crop engine, OpenRouter transport/schema, and evaluator. It does not import or
 require `paddleocr` or `paddlepaddle`.
 
@@ -18,7 +18,7 @@ bash src/mcq_extractor/run.sh --resume
 ```
 
 The shell script selects the 2021 PDF and existing `outputs/json_crops_fast/2021`
-crops. Outputs default to `outputs/json_crops_my/2021`. Use
+crops. Outputs default to `outputs/native_ocr/2021`. Use
 `MCQ_OUTPUT=outputs/my_experiment` to keep separate experiments.
 An existing output from changed code/settings requires a new output directory.
 
@@ -110,7 +110,7 @@ Profile a saved question crop with cached models:
   outputs/json_crops_my_all/2021/questions/0002_q3/patch.png --precision float32
 ```
 
-Use `--precision float16` for the local copies created by `model_quantization`.
+Use `--precision float16` for the local copies created by `experiments.precision`.
 Each command measures model initialization separately, then a first and warm
 OCR pass. Reports default to `outputs/ocr_timing/stages_<precision>.json`;
 `--output` selects another path. `--device` and `--batch-size` select execution
@@ -181,7 +181,7 @@ cached sentence-transformer model and writes `results/experiment.csv`.
 
 ```bash
 PYTHONPATH=src:. .venv/bin/python -m mcq_extractor.export_labels \
-  outputs/json_crops_my/2021 dataset/ocr_labels/2021
+  outputs/native_ocr/2021 dataset/ocr_labels/2021
 ```
 
 This exports rectified line PNGs and `labels.jsonl` with `suggested_text`, empty
