@@ -89,14 +89,23 @@ def main():
     parser = argparse.ArgumentParser(description='Profile each OCR stage on a saved crop.')
     parser.add_argument('crop', type=Path)
     parser.add_argument('--precision', choices=('float32', 'float16'), default='float32')
+    parser.add_argument('--det-model', type=Path, help='Local detector checkpoint override')
+    parser.add_argument('--rec-model', type=Path, help='Local recognizer checkpoint override')
     parser.add_argument('--device', choices=('cpu', 'mps', 'cuda'), default='cpu')
     parser.add_argument('--batch-size', type=int, default=8)
     parser.add_argument('--output', type=Path)
     args = parser.parse_args()
     options = {}
     if args.precision == 'float16':
-        from experiments.precision import DET_FP16, REC_FP16
-        options = {'det_model': str(DET_FP16), 'rec_model': str(REC_FP16)}
+        from .paths import REPOSITORY_ROOT
+        models = REPOSITORY_ROOT / 'experiments/precision/models'
+        options = {'det_model': str(models / 'PP-OCRv5_mobile_det_safetensors_fp16'),
+                   'rec_model': str(models / 'PP-OCRv5_mobile_rec_safetensors_fp16')}
+    for name in ('det_model', 'rec_model'):
+        if getattr(args, name) is not None:
+            options[name] = str(getattr(args, name).expanduser().resolve())
+    if args.precision == 'float16' and any(not Path(path).is_dir() for path in options.values()):
+        parser.error('FP16 checkpoints are missing; provide --det-model and --rec-model local directories.')
     started = time.perf_counter()
     reader = HFMobileReader(device=args.device, batch_size=args.batch_size,
                             local_files_only=True, **options)

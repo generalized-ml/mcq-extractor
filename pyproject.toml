@@ -1,42 +1,77 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "neet-pdf-to-jsons"
+name = "mcq-extractor"
 version = "0.1.0"
 description = "Convert question-paper PDFs into source JSON and structured MCQs."
-readme = "README.md"
+readme = "docs/package.md"
 requires-python = ">=3.10"
-dependencies = ["docling-slim[standard]>=2.0,<3"]
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "generalized-ml"}]
+keywords = ["ocr", "pdf", "mcq", "document-extraction", "education"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+  "docling-slim[standard]>=2.0,<3",
+  "torch>=2.4,<3",
+  "torchvision>=0.19,<1",
+  "transformers>=5.7,<6",
+  "huggingface-hub>=1.0,<2",
+  "opencv-python-headless>=4.8,<5",
+  "numpy>=1.24",
+  "psutil>=5.9,<8",
+  "pypdfium2>=4.30,<6",
+  "pillow>=10,<14",
+  "python-dotenv>=1.0",
+  "rapidocr>=3.9.1,<4",
+  "ocrmac>=1.0; sys_platform == 'darwin'",
+]
+
+[project.urls]
+Homepage = "https://github.com/generalized-ml/mcq-extractor"
+Repository = "https://github.com/generalized-ml/mcq-extractor"
+Issues = "https://github.com/generalized-ml/mcq-extractor/issues"
+Documentation = "https://github.com/generalized-ml/mcq-extractor#readme"
 
 [project.optional-dependencies]
 eval = ["sentence-transformers>=3.0,<6", "matplotlib>=3.8,<4"]
-crop = ["pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0", "rapidocr>=3.9.1,<4", "ocrmac>=1.0; sys_platform == 'darwin'"]
-ocr = ["torch>=2.4,<3", "torchvision>=0.19,<1", "transformers>=5.7,<6", "huggingface-hub>=1.0,<2", "opencv-python-headless>=4.8,<5", "numpy>=1.24", "psutil>=5.9,<8", "pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0"]
+crop = []  # Backward-compatible selector; included in the base install.
+ocr = []  # Backward-compatible selector; included in the base install.
 paddle-mobile = ["paddleocr>=3.0,<4", "paddlepaddle>=3.0,<4", "pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0"]
 paddle = ["torch>=2.4,<3", "torchvision>=0.19,<1", "transformers>=5.0,<6", "pypdfium2>=4.30,<6", "pillow>=10,<14", "python-dotenv>=1.0"]
+
+dev = ["build>=1.2", "twine>=6"]
 
 [project.scripts]
 mcq-extract = "mcq_extractor.pipeline:main"
 pdf-to-raw-json = "mcq_extractor.document.run_converter:main"
 extract-mcqs = "mcq_extractor.document.extract_mcqs:main"
-review-mcqs = "experiments.docling.review:main"
 plot-experiments = "mcq_extractor.evaluation.plot_experiments:main"
 evaluate-mcqs = "mcq_extractor.evaluation.evaluate:main"
 show-mcq = "mcq_extractor.document.show_mcq:main"
 crop-mcqs = "mcq_extractor.document.crop_pipeline:main"
-experiment-docling = "experiments.docling.pipeline:main"
-experiment-vision = "experiments.vision.pipeline:main"
-experiment-paddle = "experiments.paddle.pipeline:main"
 
 [tool.setuptools]
-package-dir = {"" = "src", "experiments" = "experiments"}
+package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
-where = ["src", "."]
-include = ["mcq_extractor*", "experiments*"]
+where = ["src"]
+include = ["mcq_extractor*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-"*" = ["*.sh", "README.md"]
+"*" = ["README.md"]

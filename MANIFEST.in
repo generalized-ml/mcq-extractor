@@ -1,0 +1,11 @@
+include LICENSE README.md pyproject.toml
+include docs/package.md
+recursive-include src/mcq_extractor *.py *.md
+prune experiments
+prune tests
+prune dataset
+prune datasets
+prune outputs
+prune results
+prune .github
+global-exclude __pycache__ *.py[cod] .DS_Store
