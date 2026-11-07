@@ -37,7 +37,22 @@ The chart uses existing saved experiments; no evaluations were rerun.
 
 [![Low-Cost MCQ Extractor pipeline: local OCR, selective review, and evaluation](docs/low-cost-mcq-extractor.svg)](docs/low-cost-mcq-extractor.drawio)
 
-## Setup
+## Install from PyPI
+
+Once the first release is published:
+
+```bash
+python -m pip install mcq-extractor
+mcq-extract paper.pdf --output outputs/my-paper --ocr-only
+```
+
+Install `mcq-extractor[eval]` for evaluation and plots. The package includes the
+main OCR and crop dependencies; experimental versions remain in this repository.
+For Apple GPU inference, add `--device mps --workers 1`. On Linux, add
+`--crop-ocr hf --device auto`. Installed commands use the working directory for
+`.env` and default outputs; `MCQ_WORKSPACE` overrides that location.
+
+## Setup from source
 
 Use Python 3.10 or newer from the repository root:
 
