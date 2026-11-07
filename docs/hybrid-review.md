@@ -32,7 +32,7 @@ outputs**. The model above is a placeholder, not an actual model ID.
 Preview evidence selection without a key, model download, or API call:
 
 ```bash
-python -m pdf_to_jsons.hybrid_mcq.run \
+python -m experiments.docling.review \
   tests/fixtures/converter_out/2021_conv_res.json \
   tests/fixtures/converter_out/2021_conv_res_mcqs.json \
   --dry-run
@@ -41,19 +41,19 @@ python -m pdf_to_jsons.hybrid_mcq.run \
 Try one question, then resume to process the rest:
 
 ```bash
-python -m pdf_to_jsons.hybrid_mcq.run \
+python -m experiments.docling.review \
   tests/fixtures/converter_out/2021_conv_res.json \
   tests/fixtures/converter_out/2021_conv_res_mcqs.json \
   --limit 1
 
-python -m pdf_to_jsons.hybrid_mcq.run \
+python -m experiments.docling.review \
   tests/fixtures/converter_out/2021_conv_res.json \
   tests/fixtures/converter_out/2021_conv_res_mcqs.json \
   --resume
 ```
 
 You can instead pass the `<name>_raw.json` and `<name>_mcqs.json` produced by
-`python -m pdf_to_jsons`. Paths are positional; filenames are not hardcoded.
+`python -m experiments.docling`. Paths are positional; filenames are not hardcoded.
 Use `--output path.json` to choose the destination. The default appends
 `_hybrid.json` to the MCQ input stem. Dry runs write a separate `_plan.json`.
 
@@ -101,5 +101,5 @@ API references:
 ## Offline tests
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -p 'test_hybrid.py'
+PYTHONPATH=src:. python -m unittest discover -s tests -p 'test_hybrid.py'
 ```

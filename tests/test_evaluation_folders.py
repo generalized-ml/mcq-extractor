@@ -5,7 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from evaluation.evaluate import golden_file, load_combined, prediction_files
+from mcq_extractor.evaluation.evaluate import golden_file, load_combined, prediction_files
 
 
 class FolderInputTests(unittest.TestCase):

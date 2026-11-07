@@ -1,7 +1,7 @@
 # Pipeline architecture
 
-The installable `src/pdf_to_jsons` package owns the PDF-to-question pipeline.
-Application code uses package-relative imports; `python -m pdf_to_jsons` and
+The installable `experiments/docling` package owns the PDF-to-question pipeline.
+Application code uses package-relative imports; `python -m experiments.docling` and
 the installed `pdf-to-jsons` command invoke the same orchestrator.
 
 1. `run_converter.py` loads the local `docling/` checkout when available, enables

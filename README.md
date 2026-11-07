@@ -2,7 +2,7 @@
 
 Turn question-paper PDFs into structured MCQ JSON using local OCR and selective
 text-only LLM review. The primary implementation is
-[`src/pdf_to_json_my`](src/pdf_to_json_my): it extracts question text, four
+[`src/mcq_extractor`](src/mcq_extractor): it extracts question text, four
 options, printed answers, explanations, and source references while retaining
 question crops for inspection.
 
@@ -57,12 +57,12 @@ Use Python 3.10 or newer from the repository root:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[my,crop,eval]'
+python -m pip install -e '.[ocr,crop,eval]'
 ```
 
 Crop generation selects Apple Vision on macOS and native PP-OCRv5 on Linux,
 including Colab. Linux Docling conversion uses RapidOCR's PyTorch backend.
-To process already generated crops, install `.[my,eval]` and pass `--crops-dir`.
+To process already generated crops, install `.[ocr,eval]` and pass `--crops-dir`.
 Model weights download on first use and are cached. `--local-files-only` requires
 the native OCR models to be fully cached.
 
@@ -82,15 +82,15 @@ After updating the cloned repository, install dependencies in a notebook cell:
 
 ```python
 %cd /content/mcq-extractor
-%pip install -e '.[my,crop,eval]'
+%pip install -e '.[ocr,crop,eval]'
 ```
 
 Run from the PDF alone, using a fresh output directory:
 
 ```python
 !DOCLING_PYTHON=python \
-  JSON_CROPS_MY_OUTPUT=/content/mcq-extractor/outputs/json_crops_my_all \
-  bash /content/mcq-extractor/json_crops_my.sh \
+  MCQ_OUTPUT=/content/mcq-extractor/outputs/json_crops_my_all \
+  bash /content/mcq-extractor/src/mcq_extractor/run.sh \
   /content/mcq-extractor/dataset/2023.pdf \
   --crop-ocr hf
 ```
@@ -106,29 +106,29 @@ own `--device` setting. Initial model downloads require network access.
 Start with two questions and local OCR only:
 
 ```bash
-JSON_CROPS_MY_OUTPUT=outputs/my_first_run \
-  bash json_crops_my.sh dataset/pdfs/2021.pdf --ocr-only --limit 2
+MCQ_OUTPUT=outputs/my_first_run \
+  bash src/mcq_extractor/run.sh dataset/pdfs/2021.pdf --ocr-only --limit 2
 ```
 
 Continue the remaining OCR and review selected questions:
 
 ```bash
-JSON_CROPS_MY_OUTPUT=outputs/my_first_run \
-  bash json_crops_my.sh dataset/pdfs/2021.pdf --resume
+MCQ_OUTPUT=outputs/my_first_run \
+  bash src/mcq_extractor/run.sh dataset/pdfs/2021.pdf --resume
 ```
 
 To reuse saved crops explicitly:
 
 ```bash
-.venv/bin/python -m pdf_to_json_my dataset/pdfs/2021.pdf \
+.venv/bin/python -m mcq_extractor dataset/pdfs/2021.pdf \
   --crops-dir outputs/json_crops_fast/2021 \
   --output outputs/my_crop_run --ocr-only
 ```
 
 Choose a fresh output directory when PDF, OCR settings, or checkpointed code
 changes. `--resume` verifies saved inputs and artifacts. The shell script defaults
-to the 2021 PDF and `outputs/json_crops_my`; `JSON_CROPS_MY_OUTPUT` sets the
-experiment folder. See the [native pipeline guide](src/pdf_to_json_my/README.md)
+to the 2021 PDF and `outputs/json_crops_my`; `MCQ_OUTPUT` sets the
+experiment folder. See the [native pipeline guide](src/mcq_extractor/README.md)
 for concurrency, profiling, local models, and labeling export.
 
 ## Output format
@@ -160,8 +160,8 @@ support; historical durations can remain unknown.
 Provide an experiment folder; golden references default to `dataset/golden`:
 
 ```bash
-.venv/bin/python -m evaluation outputs/json_crops_my_all
-.venv/bin/python -m evaluation outputs/pdf_to_jsons_all
+.venv/bin/python -m mcq_extractor.evaluation outputs/json_crops_my_all
+.venv/bin/python -m mcq_extractor.evaluation outputs/pdf_to_jsons_all
 ```
 
 Each command discovers available PDFs and appends one row to
@@ -169,8 +169,8 @@ Each command discovers available PDFs and appends one row to
 Use `--no-save` to print results without writing a row:
 
 ```bash
-.venv/bin/python -m evaluation outputs/my_first_run dataset/golden --no-save
-.venv/bin/python -m evaluation outputs/json_crops_my_all --years 2023 --no-save
+.venv/bin/python -m mcq_extractor.evaluation outputs/my_first_run dataset/golden --no-save
+.venv/bin/python -m mcq_extractor.evaluation outputs/json_crops_my_all --years 2023 --no-save
 ```
 
 Reports include quality scores, average recorded cost/PDF, cost coverage,
@@ -180,9 +180,9 @@ The first evaluation may download the embedding model; `--local-files-only`
 uses cached weights.
 
 ```bash
-.venv/bin/python -m evaluation.plot_experiments
+.venv/bin/python -m mcq_extractor.evaluation.plot_experiments
 # Optional vector export:
-.venv/bin/python -m evaluation.plot_experiments --output results/experiments.svg
+.venv/bin/python -m mcq_extractor.evaluation.plot_experiments --output results/experiments.svg
 ```
 
 The chart reads `results/experiment.csv` and defaults to
@@ -190,17 +190,17 @@ The chart reads `results/experiment.csv` and defaults to
 
 ## Other methods and development
 
-- [Native local OCR pipeline](src/pdf_to_json_my/README.md): primary low-cost path.
-- [Paddle pipeline](src/pdf_to_json_paddle/README.md): Paddle mobile and VL backends.
+- [Native local OCR pipeline](src/mcq_extractor/README.md): primary low-cost path.
+- [Paddle pipeline](experiments/paddle/README.md): Paddle mobile and VL backends.
 - [Original pipeline architecture](docs/architecture.md): Docling conversion,
   heuristic extraction, and vision review.
 - [Crop engine](docs/crop-pipeline.md) and [hybrid review](docs/hybrid-review.md).
 
-The original method remains available through `python -m pdf_to_jsons` and
-`convert_pdfs_to_jsons.sh`.
+The original method remains available through `python -m experiments.docling` and
+`experiments/docling/run.sh`.
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
+PYTHONPATH=src:. .venv/bin/python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Tests use offline fixtures and mocked external calls. Extraction can still miss

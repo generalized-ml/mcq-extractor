@@ -7,9 +7,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from evaluation.evaluate import cost_per_pdf_report, load_combined, save_results
-from evaluation.plot_experiments import read_experiments
-from pdf_to_jsons.runtime import RuntimeRecorder, combine_runtimes, recorded_runtime
+from mcq_extractor.evaluation.evaluate import cost_per_pdf_report, load_combined, save_results
+from mcq_extractor.evaluation.plot_experiments import read_experiments
+from mcq_extractor.runtime import RuntimeRecorder, combine_runtimes, recorded_runtime
 
 
 class RuntimeReportingTests(unittest.TestCase):
@@ -19,7 +19,7 @@ class RuntimeReportingTests(unittest.TestCase):
         self.root = Path(self.temp.name)
 
     def test_snapshots_do_not_double_count_and_resume_excludes_idle_gap(self):
-        with patch('pdf_to_jsons.runtime.time.perf_counter', side_effect=[10, 15, 19, 100, 104]):
+        with patch('mcq_extractor.runtime.time.perf_counter', side_effect=[10, 15, 19, 100, 104]):
             first = RuntimeRecorder(self.root, 'pdf_to_json_my')
             first.save()
             first.save(finished=True)
@@ -32,7 +32,7 @@ class RuntimeReportingTests(unittest.TestCase):
 
     def test_original_nested_output_finds_pdf_sidecar(self):
         recorder = RuntimeRecorder(self.root, 'pdf_to_json', started=0)
-        with patch('pdf_to_jsons.runtime.time.perf_counter', return_value=7):
+        with patch('mcq_extractor.runtime.time.perf_counter', return_value=7):
             recorder.save(finished=True)
         report = recorded_runtime(self.root / 'mcq_with_llm' / '2021_mcqs_with_llm.json', 'pdf_to_json')
         self.assertEqual(report['method_wall_seconds'], 7)
@@ -46,7 +46,7 @@ class RuntimeReportingTests(unittest.TestCase):
 
     def test_combined_reports_expose_missing_and_incomplete_timings(self):
         recorder = RuntimeRecorder(self.root, 'pdf_to_json_my', started=0)
-        with patch('pdf_to_jsons.runtime.time.perf_counter', return_value=12):
+        with patch('mcq_extractor.runtime.time.perf_counter', return_value=12):
             recorder.save()
         known = recorded_runtime(self.root / 'final_mcqs.json', 'pdf_to_json_my')
         missing = recorded_runtime(self.root / 'missing' / 'nested' / 'final_mcqs.json', 'pdf_to_json_my')

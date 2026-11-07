@@ -8,7 +8,7 @@ Run from the workspace root, using the Python environment where you installed th
 ```bash
 python -m pip install -e ".[eval]"
 
-python -m evaluation \
+python -m mcq_extractor.evaluation \
   --mcq-json dataset/jsons/2021/mcq_with_llm/2021_mcqs_with_llm.json \
   --golden-json dataset/golden/neet_2021/2021_mcqs.json
 ```
@@ -16,14 +16,14 @@ python -m evaluation \
 The recommended folder-based commands are:
 
 ```bash
-.venv/bin/python -m evaluation outputs/json_crops_my_all
-.venv/bin/python -m evaluation outputs/pdf_to_jsons_all
+.venv/bin/python -m mcq_extractor.evaluation outputs/json_crops_my_all
+.venv/bin/python -m mcq_extractor.evaluation outputs/pdf_to_jsons_all
 
 # Optional custom golden dataset folder:
-.venv/bin/python -m evaluation outputs/my_experiment dataset/golden
+.venv/bin/python -m mcq_extractor.evaluation outputs/my_experiment dataset/golden
 
 # Print results without adding a CSV row:
-.venv/bin/python -m evaluation outputs/my_experiment --no-save
+.venv/bin/python -m mcq_extractor.evaluation outputs/my_experiment --no-save
 ```
 
 Every method now publishes the same public files:
@@ -230,7 +230,7 @@ directly with scores from the current ID-based alignment.
 ## Offline tests
 
 ```bash
-PYTHONPATH=src python -m unittest discover -s tests -p 'test_evaluate.py'
+PYTHONPATH=src:. python -m unittest discover -s tests -p 'test_evaluate.py'
 ```
 
 Tests use explicit fake vectors to verify scoring and CSV logic without a model
@@ -238,14 +238,14 @@ download; actual evaluation always uses sentence embeddings.
 
 ## Shared experiments
 
-The implementation lives in `src/evaluation`. All pipelines append to the same
+The implementation lives in `src/mcq_extractor/evaluation`. All pipelines append to the same
 `results/experiment.csv` by default. `experiment_name` identifies the input folder
 or the supplied custom label; `experiment_number` uniquely identifies
 each run across pipelines. Input paths and hashes distinguish papers and outputs.
 Specify the label explicitly when evaluating a renamed input:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m evaluation \
+PYTHONPATH=src:. .venv/bin/python -m mcq_extractor.evaluation \
   --experiment-name pdf_to_json_paddle \
   --mcq-json outputs/json_crops_paddle/2021/final_mcqs.json \
   --golden-json dataset/golden/neet_2021/2021_mcqs.json \
@@ -265,7 +265,7 @@ Pass `--golden-json` to override this choice.
 Plot the shared experiments with:
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m evaluation.plot_experiments
+PYTHONPATH=src:. .venv/bin/python -m mcq_extractor.evaluation.plot_experiments
 ```
 
 This saves `results/experiments.png`. Scores use the left axis and recorded LLM
@@ -283,11 +283,11 @@ Recorded LLM costs are averaged across PDFs with reported costs; token totals
 are summed across the available outputs. Missing PDF costs have a separate count.
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m evaluation \
+PYTHONPATH=src:. .venv/bin/python -m mcq_extractor.evaluation \
   --mcq-root outputs/json_crops_my_all \
   --experiment-name pdf_to_json_my --device cpu
 
-PYTHONPATH=src .venv/bin/python -m evaluation \
+PYTHONPATH=src:. .venv/bin/python -m mcq_extractor.evaluation \
   --mcq-root outputs/pdf_to_jsons_all \
   --experiment-name pdf_to_json --device cpu
 ```

@@ -1,19 +1,19 @@
 # Crop detection and extraction
 
-`json_crops.sh` processes 2021 using existing Docling JSON when available, crops
+`experiments/vision/run.sh` processes 2021 using existing Docling JSON when available, crops
 question regions, runs local OCR, sends the finalized images to OpenRouter,
 and evaluates final MCQs against the golden dataset. It loads the API key from
 the ignored `.env` file. The default is Apple Vision on macOS and native
-PP-OCRv5 on Linux/Windows. The portable path requires `.[my,crop]`.
+PP-OCRv5 on Linux/Windows. The portable path requires `.[ocr,crop]`.
 
 On macOS with Vision access:
 
 ```bash
 python -m pip install -e '.[crop,eval]'
-JSON_CROPS_OUTPUT=outputs/json_crops_fast bash json_crops.sh
+JSON_CROPS_OUTPUT=outputs/json_crops_fast bash experiments/vision/run.sh
 ```
 
-On Linux, install `.[my,crop,eval]` and select `--ocr-backend hf` for the shared
+On Linux, install `.[ocr,crop,eval]` and select `--ocr-backend hf` for the shared
 crop CLI. The native end-to-end pipeline exposes the same choice as `--crop-ocr hf`.
 Portable crop checks return pixel boxes and line confidence through the existing
 OCR contract. Initial Docling conversion uses RapidOCR with `backend='torch'`;
@@ -54,13 +54,13 @@ with this version. Existing crop images and LLM results remain on disk.
 To resume a run created with this version:
 
 ```bash
-JSON_CROPS_OUTPUT=outputs/json_crops_fast bash json_crops.sh --resume
+JSON_CROPS_OUTPUT=outputs/json_crops_fast bash experiments/vision/run.sh --resume
 ```
 
 Run just cropping and OCR without LLM calls or evaluation:
 
 ```bash
-JSON_CROPS_OUTPUT=outputs/json_crops_fast bash json_crops.sh --detect-only --limit 3
+JSON_CROPS_OUTPUT=outputs/json_crops_fast bash experiments/vision/run.sh --detect-only --limit 3
 ```
 
 Results are saved under `<output>/2021/`; final extraction is `final_mcqs.json`.

@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pdf_to_jsons.hybrid_mcq import run as hybrid
+from experiments.docling import review as hybrid
 
 
 def question(number="1", review=True):

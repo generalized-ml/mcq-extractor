@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pdf_to_jsons import pdf_to_mcqs as pipeline
+from experiments.docling import pipeline
 
 
 def raw_fixture():
@@ -50,7 +50,7 @@ class PipelineTests(unittest.TestCase):
     def test_output_layout_and_resume_without_repeated_work(self):
         with patch.dict("os.environ", {"OPENROUTER_API_KEY": "offline"}), \
              patch.object(pipeline, "run_converter", side_effect=self.convert) as convert, \
-             patch("pdf_to_jsons.hybrid_mcq.run.call_openrouter", return_value=llm_fixture()) as llm, \
+             patch("experiments.docling.review.call_openrouter", return_value=llm_fixture()) as llm, \
              contextlib.redirect_stdout(io.StringIO()):
             root = pipeline.run_pipeline(self.args)
             self.args.resume = True
@@ -82,7 +82,7 @@ class PipelineTests(unittest.TestCase):
     def test_failed_llm_retains_output_and_signals_retry(self):
         with patch.dict("os.environ", {"OPENROUTER_API_KEY": "offline"}), \
              patch.object(pipeline, "run_converter", side_effect=self.convert), \
-             patch("pdf_to_jsons.hybrid_mcq.run.call_openrouter", side_effect=RuntimeError("offline error")), \
+             patch("experiments.docling.review.call_openrouter", side_effect=RuntimeError("offline error")), \
              contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(ValueError, "use --resume"):
                 pipeline.run_pipeline(self.args)

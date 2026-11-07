@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from evaluation.evaluate import main
+from mcq_extractor.evaluation.evaluate import main
 
 
 class PrintOnlyTests(unittest.TestCase):
@@ -36,9 +36,9 @@ class PrintOnlyTests(unittest.TestCase):
                                 ['--mcq-json', str(prediction), '--golden-json', str(golden)]):
                     printed = io.StringIO()
                     with patch('sys.argv', ['evaluate', *command, '--no-save', '--output-dir', str(output)]), \
-                         patch('evaluation.evaluate.SentenceEncoder'), \
-                         patch('evaluation.evaluate.evaluate', return_value=([], summary.copy())), \
-                         patch('evaluation.evaluate.save_results') as save, \
+                         patch('mcq_extractor.evaluation.evaluate.SentenceEncoder'), \
+                         patch('mcq_extractor.evaluation.evaluate.evaluate', return_value=([], summary.copy())), \
+                         patch('mcq_extractor.evaluation.evaluate.save_results') as save, \
                          contextlib.redirect_stdout(printed):
                         main()
                     save.assert_not_called()

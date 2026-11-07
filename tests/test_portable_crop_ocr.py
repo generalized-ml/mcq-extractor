@@ -12,11 +12,11 @@ from unittest.mock import Mock, patch
 
 from PIL import Image
 
-from pdf_to_jsons.crop_ocr import HFMobileCropOCR, create_crop_ocr, format_lines, resolve_ocr_backend
-from pdf_to_jsons.crop_pipeline import build_parser as crop_parser, run as crop_run
-from pdf_to_jsons.run_converter import run_converter
-from pdf_to_json_my.pipeline import build_parser as native_parser
-from pdf_to_json_my.crops import prepare_crops
+from mcq_extractor.document.crop_ocr import HFMobileCropOCR, create_crop_ocr, format_lines, resolve_ocr_backend
+from mcq_extractor.document.crop_pipeline import build_parser as crop_parser, run as crop_run
+from mcq_extractor.document.run_converter import run_converter
+from mcq_extractor.pipeline import build_parser as native_parser
+from mcq_extractor.crops import prepare_crops
 
 
 class PortableCropTests(unittest.TestCase):
@@ -27,8 +27,8 @@ class PortableCropTests(unittest.TestCase):
         self.assertEqual(resolve_ocr_backend('hf', platform='darwin'), 'hf')
 
     def test_hf_factory_never_initializes_vision(self):
-        with patch('pdf_to_jsons.crop_ocr.MacVisionOCR', side_effect=AssertionError('No Apple OCR')), \
-             patch('pdf_to_jsons.crop_ocr.HFMobileCropOCR') as factory:
+        with patch('mcq_extractor.document.crop_ocr.MacVisionOCR', side_effect=AssertionError('No Apple OCR')), \
+             patch('mcq_extractor.document.crop_ocr.HFMobileCropOCR') as factory:
             create_crop_ocr('hf', device='cpu', local_files_only=True)
         factory.assert_called_once_with(device='cpu', local_files_only=True)
 
@@ -39,7 +39,7 @@ class PortableCropTests(unittest.TestCase):
             {'text': '(1) One', 'score': 1., 'box': [[10, 20], [80, 20], [80, 40], [10, 40]]},
             {'text': 'Answer (1)', 'score': .9, 'box': [[10, 80], [90, 80], [90, 100], [10, 100]]},
         ]}
-        with patch('pdf_to_json_my.ocr.HFMobileReader', return_value=reader):
+        with patch('mcq_extractor.ocr.HFMobileReader', return_value=reader):
             backend = HFMobileCropOCR(device='cuda')
         with Image.new('RGB', (200, 120), 'white') as image:
             result = backend(image)
@@ -64,9 +64,9 @@ class PortableCropTests(unittest.TestCase):
                 self.assertEqual(ocr_engine, 'rapidocr')
                 output_path.parent.mkdir(parents=True)
                 output_path.write_text(json.dumps({'status': 'success', 'document': {}}))
-            with patch('pdf_to_jsons.crop_pipeline.create_crop_ocr'), \
-                 patch('pdf_to_jsons.crop_pipeline.run_converter', side_effect=convert) as conversion, \
-                 patch('pdf_to_jsons.crop_pipeline.build_layout', side_effect=RuntimeError('layout reached')), \
+            with patch('mcq_extractor.document.crop_pipeline.create_crop_ocr'), \
+                 patch('mcq_extractor.document.crop_pipeline.run_converter', side_effect=convert) as conversion, \
+                 patch('mcq_extractor.document.crop_pipeline.build_layout', side_effect=RuntimeError('layout reached')), \
                  contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaisesRegex(RuntimeError, 'layout reached'):
                     crop_run(args)
@@ -91,7 +91,7 @@ class PortableCropTests(unittest.TestCase):
         args = native_parser().parse_args(['paper.pdf', '--crop-ocr', 'hf', '--crop-device', 'cpu', '--local-files-only'])
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with patch('pdf_to_json_my.crops.run_crops', side_effect=RuntimeError('forwarded')) as run:
+            with patch('mcq_extractor.crops.run_crops', side_effect=RuntimeError('forwarded')) as run:
                 with self.assertRaisesRegex(RuntimeError, 'forwarded'):
                     prepare_crops(Path('/paper.pdf'), root, args)
             forwarded = run.call_args.args[0]
