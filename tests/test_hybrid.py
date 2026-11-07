@@ -8,7 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pdf_to_jsons.hybrid_mcq import run as hybrid
+from experiments.docling import review as hybrid
+from mcq_extractor import review_api
 
 
 def question(number="1", review=True):
@@ -79,7 +80,7 @@ class HybridTests(unittest.TestCase):
                    "choices": [{"finish_reason": "stop", "message": {
                        "content": json.dumps(formula_result)}}]}
         evidence, images = hybrid.build_evidence(document(), question(), 8)
-        with patch.object(hybrid, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as send:
+        with patch.object(review_api, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())) as send:
             result = hybrid.call_openrouter(evidence, images, question(), api_key="fake",
                                              model="test/vision", retries=0, timeout=1)
         request = send.call_args.args[0]
@@ -94,7 +95,7 @@ class HybridTests(unittest.TestCase):
     def test_truncated_model_response_is_rejected(self):
         payload = {"choices": [{"finish_reason": "length", "message": {
             "content": json.dumps(extraction())}}]}
-        with patch.object(hybrid, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())):
+        with patch.object(review_api, "urlopen", return_value=io.BytesIO(json.dumps(payload).encode())):
             with self.assertRaisesRegex(ValueError, "did not finish normally"):
                 hybrid.call_openrouter({}, [], question(), api_key="fake", model="test/vision",
                                        retries=0, timeout=1)

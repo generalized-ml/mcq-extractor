@@ -13,12 +13,12 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from pdf_to_json_paddle.crops import prepare_crops
-from pdf_to_json_paddle.ocr import token_confidence
-from pdf_to_json_paddle.pipeline import build_parser, run
-from pdf_to_json_paddle.review import review_question
-from pdf_to_json_paddle.structure import parse_mcq, route_question
-from pdf_to_jsons.pdf_to_mcqs import file_hash
+from experiments.paddle.crops import prepare_crops
+from experiments.paddle.ocr import token_confidence
+from experiments.paddle.pipeline import build_parser, run
+from experiments.paddle.review import review_question
+from experiments.paddle.structure import parse_mcq, route_question
+from mcq_extractor.common import file_hash
 
 
 def text(number="1"):
@@ -195,7 +195,7 @@ class ReviewTests(unittest.TestCase):
             captured.append(json.loads(req.data))
             return io.StringIO(json.dumps(payload))
 
-        with patch("pdf_to_jsons.json_crops.urlopen", side_effect=request):
+        with patch("mcq_extractor.crop_review.urlopen", side_effect=request):
             review_question(draft, text(), model="test", api_key="offline", timeout=1, retries=0, record_attempt=attempts.append)
         content = captured[0]["messages"][1]["content"]
         self.assertTrue(all(item["type"] == "text" for item in content))

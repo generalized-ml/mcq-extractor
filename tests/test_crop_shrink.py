@@ -4,8 +4,8 @@ import unittest
 
 from PIL import Image
 
-from pdf_to_jsons.crop_layout import Box, Region, Segment
-from pdf_to_jsons.crop_pipeline import content_floors, shrink_question
+from mcq_extractor.document.crop_layout import Box, Region, Segment
+from mcq_extractor.document.crop_pipeline import content_floors, shrink_question
 
 
 TEXT = "1. Pick a number\n(1) One\n(2) Two\n(3) Three\n(4) Four\nAnswer (2)\nSol. Printed explanation."

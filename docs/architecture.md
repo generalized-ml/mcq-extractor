@@ -1,24 +1,26 @@
-# Pipeline architecture
+# Original Docling experiment architecture
 
-The installable `src/pdf_to_jsons` package owns the PDF-to-question pipeline.
-Application code uses package-relative imports; `python -m pdf_to_jsons` and
-the installed `pdf-to-jsons` command invoke the same orchestrator.
+The `experiments/docling` package contains the original PDF-to-question pipeline.
+The maintained native OCR pipeline lives in `src/mcq_extractor`; both versions
+reuse `mcq_extractor.document` for conversion and crop generation.
+Application code uses package-relative imports; `python -m experiments.docling` and
+the installed `experiment-docling` command invoke the same orchestrator.
 
 1. `run_converter.py` loads the local `docling/` checkout when available, enables
    OCR, table structure, page images, picture images, and parsed pages, and saves
    the public Docling `ConversionResult` as JSON.
 2. `extract_mcqs.py` walks document elements and emits question text, options,
    source references, page numbers, and incomplete review candidates.
-3. `hybrid_mcq/run.py` builds evidence from source elements and embedded images,
+3. `experiments/docling/review.py` builds evidence from source elements and embedded images,
    calls OpenRouter for selected questions, validates responses, and checkpoints
    results. Dry runs save an evidence plan without API calls.
 
-`pdf_to_mcqs.py` coordinates these stages. A per-PDF manifest records source and
+`experiments/docling/pipeline.py` coordinates these stages. A per-PDF manifest records source and
 code hashes; stage output hashes protect resumed conversion and extraction.
 Hybrid checkpoints track review inputs and settings independently. Failures keep
 partial results available for inspection and retry.
 
-`evaluate.py` compares predictions with golden questions by ID. It reports exact
+`mcq_extractor.evaluation` compares predictions with golden questions by ID. It reports exact
 word-prefix scores and local sentence embedding similarities. `show_mcq.py`
 renders a selected question and source evidence for manual inspection.
 

@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pdf_to_json_paddle.mobile import MobileReader
-from pdf_to_json_paddle.pipeline import build_parser
-from pdf_to_json_paddle.structure import route_question
+from experiments.paddle.mobile import MobileReader
+from experiments.paddle.pipeline import build_parser
+from experiments.paddle.structure import route_question
 
 
 class MobileTests(unittest.TestCase):
@@ -54,7 +54,7 @@ class ConfidenceScopeTests(unittest.TestCase):
                 'lines': [{'text': t, 'score': s} for t, s in lines]}
 
     def test_excludes_late_solution_but_preserves_text(self):
-        from pdf_to_json_paddle.mobile import scope_confidence
+        from experiments.paddle.mobile import scope_confidence
         p = self.part([('Question and options', .99), ('Solution: one two three', .98),
                        ('Badly read long explanation', .1)])
         original = p['text']
@@ -65,7 +65,7 @@ class ConfidenceScopeTests(unittest.TestCase):
         self.assertEqual(p['confidence_scope']['text'], 'Question and options\nSolution: one two three')
 
     def test_cross_crop_three_words_and_excluded_continuation(self):
-        from pdf_to_json_paddle.mobile import scope_confidence
+        from experiments.paddle.mobile import scope_confidence
         parts = [self.part([('Q ANSWER: (2)', .99)]),
                  self.part([('because gravity', .98), ('later text', .1)]),
                  self.part([('more explanation', .1)])]
@@ -75,7 +75,7 @@ class ConfidenceScopeTests(unittest.TestCase):
         self.assertTrue(parts[2]['confidence_scope']['excluded'])
 
     def test_no_marker_full_text_and_partial_boundary_line(self):
-        from pdf_to_json_paddle.mobile import scope_confidence
+        from experiments.paddle.mobile import scope_confidence
         p = self.part([('question', .99), ('option', .1)])
         scope_confidence([p])
         self.assertEqual(p['confidence']['scored_lines'], 2)
@@ -86,7 +86,7 @@ class ConfidenceScopeTests(unittest.TestCase):
         self.assertAlmostEqual(p['confidence']['score'], .8)
 
     def test_short_tail_and_word_boundary(self):
-        from pdf_to_json_paddle.mobile import scope_confidence
+        from experiments.paddle.mobile import scope_confidence
         p = self.part([('dissolution answers', .9), ('Solution: (2)', .9)])
         scope_confidence([p])
         self.assertEqual(p['confidence_scope']['text'], p['text'])

@@ -9,7 +9,7 @@ from unittest.mock import patch
 import contextlib
 import io
 
-from evaluation.evaluate import (
+from mcq_extractor.evaluation.evaluate import (
     WEIGHTS, cosine_similarity, evaluate, keyword_match,
     load_questions, normalize_question, save_results, llm_cost_report, main,
     find_golden_json,
@@ -132,7 +132,7 @@ class EvaluationTests(unittest.TestCase):
             output = root / "results"
             with patch("sys.argv", ["evaluate", "--mcq-json", str(prediction),
                                     "--golden-json", str(golden), "--output-dir", str(output)]), \
-                 patch("evaluation.evaluate.SentenceEncoder", return_value=fake_encoder), \
+                 patch("mcq_extractor.evaluation.evaluate.SentenceEncoder", return_value=fake_encoder), \
                  contextlib.redirect_stdout(io.StringIO()):
                 main()
             with (output / "experiment.csv").open() as stream:

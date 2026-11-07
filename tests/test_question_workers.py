@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from pdf_to_json_my.question_workers import execution_settings
+from mcq_extractor.question_workers import execution_settings
 
 
 class WorkerAllocationTests(unittest.TestCase):
